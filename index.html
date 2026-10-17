@@ -156,6 +156,21 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .login h1{font-family:var(--f-display);font-size:34px;line-height:1.05;margin:0}
 .gbtn{height:50px;border-radius:12px;border:1px solid var(--line);background:var(--surface);padding:0 20px;display:inline-flex;align-items:center;gap:10px;font-weight:600;cursor:pointer;color:var(--fg)}
 .notice{font-size:12px;color:var(--muted);text-align:center;padding:10px 0 0}
+
+/* Segmente + registru */
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:var(--line)}
+.seg button{border:none;background:transparent;border-radius:9px;height:38px;font-size:14px;font-weight:500;color:var(--muted);cursor:pointer}
+.seg button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgb(0 0 0 / .12)}
+.regwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.reg{border-collapse:separate;border-spacing:0;font-size:13px;min-width:100%}
+.reg th,.reg td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+.reg thead th{font-size:11px;color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--surface)}
+.reg th[scope="row"],.reg thead th:first-child{position:sticky;left:0;z-index:1;background:var(--surface);text-align:left;padding-left:12px;padding-right:10px;font-weight:500;box-shadow:1px 0 0 var(--line)}
+.reg tr.mine th[scope="row"],.reg tr.mine td{background:var(--gold-soft)}
+.reg tfoot th,.reg tfoot td{font-weight:600;border-bottom:none;color:var(--muted)}
+.reg .pct{font-weight:600;padding-right:12px}
+.rc{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:7px;font-weight:600;font-size:12px}
+.rc.P{background:var(--p-soft);color:var(--p)}.rc.M{background:var(--m-soft);color:var(--m)}.rc.N{background:var(--n-soft);color:var(--n)}.rc.X{color:var(--muted)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 
@@ -362,9 +377,10 @@ function build(){
   // prezență
   const pv=S.data.presence||[];const head=pv[0]||[];
   M.dates=[];head.forEach((h,i)=>{const d=parseDMY(h);if(d&&/^\d{2}\.\d{2}\.\d{2,4}$/.test(String(h).trim()))M.dates.push({d,col:i})});
-  M.pres=new Map();
+  M.pres=new Map();M.presRows=[];
   for(let i=1;i<pv.length;i++){const r=pv[i]||[];if(!/^\d+$/.test(String(r[0]||"").trim())||!r[1])continue;
-    const k=keyOf(r[1],r[2]);M.pres.set(k,M.dates.map(x=>String(r[x.col]||"").trim().toUpperCase()))}
+    const k=keyOf(r[1],r[2]);const vals=M.dates.map(x=>String(r[x.col]||"").trim().toUpperCase());M.pres.set(k,vals);
+    M.presRows.push({key:k,name:String(r[1]).trim()+" "+String(r[2]||"").trim().split(/\s+/)[0],vals})}
   const t0=today();
   M.next=M.dates.find(x=>x.d>=t0)||null;
   // ultima ținută ținută (cu marcaje)
@@ -499,7 +515,9 @@ function vHome(v){
 }
 
 function vTinute(v){
-  let h=sectionErr("tinuteTop","Arhiva ținutelor")+sectionErr("tinuteFiles","Documentele ținutelor");
+  const seg=`<div class="seg" role="tablist" aria-label="Vedere">${[["arhiva","Arhiva"],["registru","Registrul de prezență"]].map(([k,l])=>`<button type="button" role="tab" id="seg-${k}" aria-selected="${(S.tview||"arhiva")===k}" data-seg="${k}">${l}</button>`).join("")}</div>`;
+  if(S.tview==="registru"){v.innerHTML=seg+vRegistru();bindSeg(v);return}
+  let h=seg+sectionErr("tinuteTop","Arhiva ținutelor")+sectionErr("tinuteFiles","Documentele ținutelor");
   if(!M.tinute.length&&!S.err.tinuteTop)h+=`<div class="state">Încă nu există ținute în arhivă.</div>`;
   M.tinute.forEach(t=>{
     const mine=M.me&&M.pres.get(M.me.key);const j=M.dates.findIndex(x=>sameDay(x.d,t.d));
@@ -514,7 +532,20 @@ function vTinute(v){
       ${t.photos.length?`<div class="label" style="margin-top:10px">Fotografii</div><div class="photos">${t.photos.map((p,i)=>`<button class="photo" type="button" data-open="${esc(p.id)}" data-name="Fotografie ${i+1} · ${esc(fmtDM(t.d))}" data-mime="${esc(p.mimeType)}" data-link="${esc(p.webViewLink||"")}">${svg("img",22)}</button>`).join("")}</div>`:""}
     </section>`;
   });
-  v.innerHTML=h;
+  v.innerHTML=h;bindSeg(v);
+}
+function bindSeg(v){v.querySelectorAll("[data-seg]").forEach(b=>b.onclick=()=>{S.tview=b.dataset.seg;vTinute(v);v.querySelectorAll("[data-open]").forEach(x=>x.onclick=()=>openDoc(x.dataset.open,x.dataset.name,x.dataset.mime,x.dataset.link))})}
+function vRegistru(){
+  if(S.err.presence)return sectionErr("presence","Registrul de prezență");
+  const t0=today();const cols=M.dates.map((d,i)=>({...d,i})).filter(d=>d.d<=t0);
+  if(!cols.length)return `<div class="state">Registrul se completează după prima ținută.</div>`;
+  const tot=cols.map(c=>{let n=0;M.presRows.forEach(r=>{if(r.vals[c.i]==="P")n++});return n});
+  const rows=M.presRows.map(r=>{const c={P:0,M:0,N:0};cols.forEach(x=>{const v=r.vals[x.i];if(c[v]!==undefined)c[v]++});const t=c.P+c.M+c.N;return {...r,c,pct:t?Math.round(c.P/t*100):null}});
+  const me=M.me&&M.me.key;
+  return `<div class="small muted">P prezent · M absent motivat · N absent nemotivat · procentul se calculează din ținutele marcate</div>
+  <div class="regwrap"><table class="reg"><thead><tr><th scope="col">Frate</th>${cols.map(c=>`<th scope="col" class="num">${c.d.getDate()}.${String(c.d.getMonth()+1).padStart(2,"0")}</th>`).join("")}<th scope="col">%</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr${r.key===me?' class="mine"':""}><th scope="row">${esc(r.name)}</th>${cols.map(c=>{const v=r.vals[c.i]||"";return `<td><span class="rc ${v||"X"}">${v||"·"}</span></td>`}).join("")}<td class="num pct">${r.pct===null?"–":r.pct+"%"}</td></tr>`).join("")}</tbody>
+  <tfoot><tr><th scope="row">Prezenți</th>${tot.map(n=>`<td class="num">${n}</td>`).join("")}<td></td></tr></tfoot></table></div>`;
 }
 
 function vMe(v){
@@ -649,7 +680,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-3";
+const APP_VERSION="2026.10.17-4";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
