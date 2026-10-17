@@ -147,6 +147,10 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .vbody{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 8px calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:flex-start;gap:10px;background:var(--line)}
 .vpage{margin-inline:auto;background:#fff;box-shadow:0 1px 6px rgb(0 0 0 / .18);max-width:none}
 .vimg{margin-inline:auto;max-width:100%;height:auto;border-radius:6px}
+.vdoc{background:#fff;color:#1a1a1a;max-width:760px;width:100%;margin-inline:auto;padding:28px 22px;border-radius:6px;box-shadow:0 1px 6px rgb(0 0 0 / .18);font-family:Georgia,"Times New Roman",serif;font-size:16px;line-height:1.6;overflow-wrap:anywhere}
+.vdoc h1,.vdoc h2,.vdoc h3{font-family:var(--f-display);line-height:1.2;text-wrap:balance}
+.vdoc table{border-collapse:collapse;width:100%;font-size:14px}.vdoc td,.vdoc th{border:1px solid #ccc;padding:4px 6px}
+.vdoc img{max-width:100%;height:auto}
 .vmsg{margin:auto;text-align:center;color:var(--muted);padding:24px}
 .viewer .fallback{flex:1;display:grid;place-items:center;text-align:center;padding:24px}
 
@@ -603,6 +607,7 @@ function openDoc(id,name,mime,link){
   const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label",name);
   const canRender=S.api.mode==="google";
   const isImg=/^image\//.test(mime||"");
+  const isDocx=/wordprocessingml\.document$/.test(mime||"");
   const isPdfable=/pdf$/.test(mime||"")||/^application\/vnd\.google-apps\.(document|presentation|spreadsheet)/.test(mime||"");
   const body=!canRender?`<div class="fallback"><div><p><strong>${esc(name)}</strong></p><p class="muted small">În aplicația finală documentul se deschide chiar aici, pe tot ecranul.<br>În previzualizare îl poți deschide în Drive.</p>${link?`<p><a href="${esc(link)}" target="_blank" rel="noopener">Deschide în Drive</a></p>`:""}</div></div>`
     :`<div class="vbody" id="vbody"><div class="vmsg">Se deschide documentul…</div></div>`;
@@ -616,10 +621,11 @@ function openDoc(id,name,mime,link){
   if(!canRender)return;
   const box=el.querySelector("#vbody");
   const fail=msg=>{box.innerHTML=`<div class="vmsg"><p>${esc(msg)}</p>${link?`<p><a href="${esc(link)}" target="_blank" rel="noopener">Deschide în Drive</a></p>`:""}</div>`};
-  if(!isImg&&!isPdfable){fail("Acest tip de fișier nu poate fi afișat în aplicație.");return}
+  if(!isImg&&!isPdfable&&!isDocx){fail("Acest tip de fișier nu poate fi afișat în aplicație.");return}
   S.api.file(id,mime).then(async blob=>{
     if(!alive)return;
     if(isImg){const u=URL.createObjectURL(blob);urls.push(u);box.innerHTML=`<img class="vimg" src="${u}" alt="${esc(name)}">`;return}
+    if(isDocx){const m=await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js","mammoth");const r=await m.convertToHtml({arrayBuffer:await blob.arrayBuffer()});if(!alive)return;box.innerHTML=`<article class="vdoc">${r.value}</article>`;return}
     const lib=await loadPdfJs();
     const pdf=await lib.getDocument({data:await blob.arrayBuffer()}).promise;
     let zoom=1;
@@ -634,6 +640,12 @@ function openDoc(id,name,mime,link){
     await draw();
     const zb=el.querySelector("#vzoom");if(zb)zb.onclick=()=>{zoom=zoom>=2?1:zoom+0.5;zb.textContent=Math.round(zoom*100)+"%";draw()};
   }).catch(e=>fail(e&&e.status===403||e&&e.status===404?"Nu ai acces la acest document.":"Documentul nu s-a putut deschide. Verifică conexiunea și încearcă din nou."));
+}
+const _scripts={};
+function loadScript(src,global){
+  if(_scripts[src])return _scripts[src];
+  _scripts[src]=new Promise((res,rej)=>{const el=document.createElement("script");el.src=src;el.onload=()=>res(window[global]);el.onerror=()=>{delete _scripts[src];rej(new Error(global))};document.head.append(el)});
+  return _scripts[src];
 }
 let _pdfjs=null;
 function loadPdfJs(){
@@ -680,7 +692,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-4";
+const APP_VERSION="2026.10.17-5";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
