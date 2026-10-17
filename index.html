@@ -98,6 +98,11 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .chev{color:var(--muted)}
 .doci{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;background:var(--gold-soft);color:var(--gold-ink);flex:none}
 
+.news{display:flex;flex-direction:column;gap:10px}
+.newsitem{border-left:3px solid var(--gold);padding-block:12px}
+.newsitem h3{font-family:var(--f-display);font-size:21px;font-weight:700;margin:4px 0 4px;text-wrap:balance}
+.newsitem p{margin:0;font-size:15px;color:var(--fg)}
+.newslink{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-weight:600;font-size:14px;color:var(--gold-ink);text-decoration:none}
 /* Ținute */
 .tinuta-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .tinuta-h h3{font-family:var(--f-display);font-size:22px;font-weight:700;margin:0}
@@ -192,7 +197,8 @@ const CONFIG = {
     presence: "1wzgKkQ4UfjfTJy8vcQJg0b0hgIrok-x0S45ozmXTI7I",
     visits:   "1Q_oiZyeHmlJ8Fd5EWAP2LccEsPrPKVHkVBsqZ3lAciw",
     plates:   "1YqHYz7_W6Yjw8m1BTzgWd1uvK5-zrAgMz6IX3NQ2rPQ",
-    trunchi:  "16TcMEn5ZY5x1qB75iM3ss4BUet44p-l38bDdpKAr1Lk"
+    trunchi:  "16TcMEn5ZY5x1qB75iM3ss4BUet44p-l38bDdpKAr1Lk",
+    news:     "1Lo_7AdiMoOA6li6yo2e62JbIVjwzTJ3PausRyohLjBQ"
   },
   FOLDERS: {
     tinute:  "12BoNMqN_mRn1tMZ4FvrPAPq3PnNM6HeT",
@@ -219,7 +225,7 @@ const norm=s=>String(s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase(
 const keyOf=(nume,prenume)=>norm(nume)+"|"+norm(String(prenume||"").split(/\s+/)[0]);
 const keyFromFull=full=>{const p=String(full||"").trim().split(/\s+/);return keyOf(p[0],p[1]||"")};
 const today=()=>{const d=new Date();d.setHours(0,0,0,0);return d};
-function parseDMY(s){const m=/(\d{1,2})\.(\d{1,2})\.(\d{2,4})/.exec(String(s||""));if(!m)return null;let y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1])}
+function parseDMY(s){s=String(s||"");const iso=/^(\d{4})-(\d{2})-(\d{2})/.exec(s);if(iso)return new Date(+iso[1],+iso[2]-1,+iso[3]);const m=/(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})/.exec(s);if(!m)return null;let y=+m[3];if(y<100)y+=2000;return new Date(y,+m[2]-1,+m[1])}
 function parseRoDate(s){const n=norm(s);const m=/(\d{1,2})\s+([a-z]+)\s+(\d{4})/.exec(n);if(!m)return null;const mi=RO_MONTHS.findIndex(x=>norm(x)===m[2]);return mi<0?null:new Date(+m[3],mi,+m[1])}
 const fmtLong=d=>d.toLocaleDateString("ro-RO",{weekday:"long",day:"numeric",month:"long"});
 const fmtDM=d=>d.toLocaleDateString("ro-RO",{day:"numeric",month:"long"});
@@ -362,6 +368,7 @@ async function loadAll(){
     plates:()=>A.sheet(CONFIG.SHEETS.plates,"'Planșe'!A5:J1000"),
     trunchi:()=>CONFIG.SHOW_TRUNCHI?A.sheet(CONFIG.SHEETS.trunchi,"'Situatie'!A3:J200"):Promise.resolve(null),
     events:()=>A.events(CONFIG.CALENDAR_ID,t0,to),
+    news:()=>A.sheet(CONFIG.SHEETS.news,"A2:E300"),
     tinuteTop:()=>A.children([CONFIG.FOLDERS.tinute]),
     minutul:()=>A.children([CONFIG.FOLDERS.minutul]),
     libTop:()=>A.children([CONFIG.FOLDERS.library])
@@ -432,13 +439,15 @@ function build(){
   // bibliotecă
   const top=S.data.libTop||[];const sub=S.data.libFiles||[];
   const groups=[];
-  const loose=top.filter(f=>f.mimeType!=="application/vnd.google-apps.folder");
+  const loose=top.filter(f=>f.mimeType!=="application/vnd.google-apps.folder"&&f.id!==CONFIG.SHEETS.news);
   if(loose.length)groups.push({name:"Documente",files:loose});
   top.filter(f=>f.mimeType==="application/vnd.google-apps.folder").forEach(g=>{
     const fs=sub.filter(x=>x.parent===g.id&&x.mimeType!=="application/vnd.google-apps.folder");
     groups.push({name:g.name.replace(/^\d+[\.\s-]*/,""),files:fs});
   });
   M.lib=groups;
+  // știri
+  M.news=(S.data.news||[]).filter(r=>r[2]).map(r=>{const pub=parseDMY(r[0])||t0;let until=parseDMY(r[1]);if(!until){until=new Date(pub);until.setDate(until.getDate()+14)}return {pub,until,titlu:r[2],text:r[3]||"",link:String(r[4]||"").trim()}}).filter(n=>n.pub<=t0&&n.until>=t0).sort((a,b)=>b.pub-a.pub);
   // evenimente
   M.events=(S.data.events||[]).filter(e=>!/^\s*🎂/.test(e.title)&&!/^ținută regulară/i.test(e.title));
   // aniversări (fără an)
@@ -498,6 +507,9 @@ function docBtn(f,label,sub,icon="doc"){
 
 function vHome(v){
   const nx=M.next;let h="";
+  if(M.news.length){
+    h+=`<section aria-label="Noutăți" class="news">${M.news.map(n=>`<article class="card newsitem"><div class="label">${n.pub.getTime()===today().getTime()?"Astăzi":esc(fmtDM(n.pub))}</div><h3>${esc(n.titlu)}</h3>${n.text?`<p>${esc(n.text)}</p>`:""}${/^https?:\/\//.test(n.link)?`<a class="newslink" href="${esc(n.link)}" target="_blank" rel="noopener">Deschide ${svg("ext",14)}</a>`:""}</article>`).join("")}</section>`;
+  }
   if(nx){
     const t=M.tinute.find(x=>sameDay(x.d,nx.d));
     const reg=M.minutul.filter(x=>sameDay(x.d,nx.d));
@@ -706,7 +718,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-9";
+const APP_VERSION="2026.10.17-10";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
