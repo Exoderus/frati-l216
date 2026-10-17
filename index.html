@@ -714,13 +714,22 @@ function vLib(v){
   v.innerHTML=h;
 }
 
-function vBros(v){v.innerHTML=vLoji()}
-function vLoji(){
+function vBros(v){
+  if(S.err.lodges||!M.lodges.length){v.innerHTML=vLoji();return}
+  v.innerHTML=`<input class="search" type="search" id="lojiQ" placeholder="Caută lojă, număr, oraș sau secretar" autocomplete="off" aria-label="Caută o lojă" style="margin-bottom:6px"><div id="lojiList">${vLoji("")}</div>`;
+  const q=v.querySelector("#lojiQ"),list=v.querySelector("#lojiList");
+  q.addEventListener("input",()=>{list.innerHTML=vLoji(q.value)});
+}
+function normRo(t){return String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
+function vLoji(q){
   if(S.err.lodges)return sectionErr("lodges","Lista lojilor");
   if(!M.lodges.length)return `<div class="state">Lista lojilor din Zona V va apărea aici.</div>`;
-  const orients=[...new Set(M.lodges.map(l=>l.orient||"Cluj"))].sort((a,b)=>(a==="Cluj"?-1:b==="Cluj"?1:a.localeCompare(b,"ro")));
-  const old=M.lodges.some(l=>/verific/i.test(l.valid));
-  return `${old?`<div class="small muted">Datele marcate „de verificat” provin dintr-o listă mai veche; confirmați-le la Secretariat înainte de o vizită.</div>`:""}`+orients.map(o=>`<div class="sec-title">Orientul ${esc(o)}</div><div class="card" style="padding-block:6px">${M.lodges.filter(l=>(l.orient||"Cluj")===o).map(l=>`<div class="lodge"><div class="lh"><span class="t">R∴L∴ ${esc(l.nume)}${l.nr?` nr. ${esc(l.nr)}`:""}</span>${/verific/i.test(l.valid)?`<span class="tag">de verificat</span>`:""}</div>${l.tinute?`<div class="s">${esc(l.tinute)}</div>`:""}${l.contact?`<div class="s">${esc(l.contact)}${l.functie?` · ${esc(l.functie)}`:""}</div>`:""}${l.adresa?`<div class="s">${esc(l.adresa)}</div><div class="lnav"><a class="navbtn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.adresa)}" target="_blank" rel="noopener">${svg("pin",14)}Google Maps</a><a class="navbtn" href="https://waze.com/ul?q=${encodeURIComponent(l.adresa)}&navigate=yes" target="_blank" rel="noopener">${svg("pin",14)}Waze</a></div>`:""}<div class="lc">${l.tel?`<a href="tel:${esc(String(l.tel).replace(/\s/g,""))}">${esc(l.tel)}</a>`:""}${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>`:""}</div></div>`).join("")}</div>`).join("");
+  const terms=normRo(q).split(/\s+/).filter(Boolean);
+  const L=!terms.length?M.lodges:M.lodges.filter(l=>{const h=normRo([l.nume,l.nr,l.orient,l.contact].join(" "));return terms.every(t=>h.includes(t))});
+  if(!L.length)return `<div class="state">Nicio lojă nu se potrivește căutării.</div>`;
+  const orients=[...new Set(L.map(l=>l.orient||"Cluj"))].sort((a,b)=>(a==="Cluj"?-1:b==="Cluj"?1:a.localeCompare(b,"ro")));
+  const old=L.some(l=>/verific/i.test(l.valid));
+  return `${old?`<div class="small muted">Datele marcate „de verificat” provin dintr-o listă mai veche; confirmați-le la Secretariat înainte de o vizită.</div>`:""}`+orients.map(o=>`<div class="sec-title">Orientul ${esc(o)}</div><div class="card" style="padding-block:6px">${L.filter(l=>(l.orient||"Cluj")===o).map(l=>`<div class="lodge"><div class="lh"><span class="t">R∴L∴ ${esc(l.nume)}${l.nr?` nr. ${esc(l.nr)}`:""}</span>${/verific/i.test(l.valid)?`<span class="tag">de verificat</span>`:""}</div>${l.tinute?`<div class="s">${esc(l.tinute)}</div>`:""}${l.contact?`<div class="s">${esc(l.contact)}${l.functie?` · ${esc(l.functie)}`:""}</div>`:""}${l.adresa?`<div class="s">${esc(l.adresa)}</div><div class="lnav"><a class="navbtn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.adresa)}" target="_blank" rel="noopener">${svg("pin",14)}Google Maps</a><a class="navbtn" href="https://waze.com/ul?q=${encodeURIComponent(l.adresa)}&navigate=yes" target="_blank" rel="noopener">${svg("pin",14)}Waze</a></div>`:""}<div class="lc">${l.tel?`<a href="tel:${esc(String(l.tel).replace(/\s/g,""))}">${esc(l.tel)}</a>`:""}${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>`:""}</div></div>`).join("")}</div>`).join("");
 }
 function fmtTel(t){t=String(t).replace(/\D/g,"");if(t.length===9)t="0"+t;return t.replace(/^(\d{4})(\d{3})(\d{3})$/,"$1 $2 $3")}
 
@@ -814,7 +823,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-21";
+const APP_VERSION="2026.10.17-22";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
