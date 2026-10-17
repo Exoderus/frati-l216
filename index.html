@@ -144,7 +144,10 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .viewer header .wrap{display:flex;align-items:center;gap:10px;padding-block:10px}
 .viewer header h2{flex:1;min-width:0;margin:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vbtn{background:transparent;border:1px solid rgb(255 255 255 / .25);color:var(--band-fg);border-radius:10px;height:38px;padding:0 12px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-flex;align-items:center}
-.viewer iframe{flex:1;width:100%;border:0;background:#fff}
+.vbody{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 8px calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:flex-start;gap:10px;background:var(--line)}
+.vpage{margin-inline:auto;background:#fff;box-shadow:0 1px 6px rgb(0 0 0 / .18);max-width:none}
+.vimg{margin-inline:auto;max-width:100%;height:auto;border-radius:6px}
+.vmsg{margin:auto;text-align:center;color:var(--muted);padding:24px}
 .viewer .fallback{flex:1;display:grid;place-items:center;text-align:center;padding:24px}
 
 /* Login */
@@ -208,6 +211,13 @@ function googleAdapter(token){
   }
   return {
     mode:"google",
+    async file(id,mime){
+      const isG=/^application\/vnd\.google-apps\./.test(mime||"");
+      const u=isG?`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=application%2Fpdf`:`https://www.googleapis.com/drive/v3/files/${id}?alt=media`;
+      const r=await fetch(u,{headers:{Authorization:"Bearer "+token}});
+      if(!r.ok)throw new ApiError(r.status,"");
+      return r.blob();
+    },
     async me(){const u=await get("https://www.googleapis.com/oauth2/v3/userinfo");return {email:u.email,name:u.given_name||u.name||""}},
     async sheet(id,range){const j=await get(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}`);return j.values||[]},
     async children(ids){
@@ -555,14 +565,47 @@ function fmtTel(t){t=String(t).replace(/\D/g,"");if(t.length===9)t="0"+t;return 
 /* ============ VIZUALIZARE DOCUMENTE ============ */
 function openDoc(id,name,mime,link){
   const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label",name);
-  const g=/google-apps\.document/.test(mime)?`https://docs.google.com/document/d/${id}/preview`:/google-apps\.spreadsheet/.test(mime)?`https://docs.google.com/spreadsheets/d/${id}/preview`:/google-apps\.presentation/.test(mime)?`https://docs.google.com/presentation/d/${id}/preview`:`https://drive.google.com/file/d/${id}/preview`;
-  const body=S.api.mode==="google"?`<iframe src="${g}" title="${esc(name)}" allow="autoplay"></iframe>`:`<div class="fallback"><div><p><strong>${esc(name)}</strong></p><p class="muted small">În aplicația finală documentul se deschide chiar aici, pe tot ecranul.<br>În previzualizare îl poți deschide în Drive.</p>${link?`<p><a href="${esc(link)}" target="_blank" rel="noopener">Deschide în Drive</a></p>`:""}</div></div>`;
-  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="vclose">Închide</button><h2>${esc(name)}</h2></div></header>${body}`;
+  const canRender=S.api.mode==="google";
+  const isImg=/^image\//.test(mime||"");
+  const isPdfable=/pdf$/.test(mime||"")||/^application\/vnd\.google-apps\.(document|presentation|spreadsheet)/.test(mime||"");
+  const body=!canRender?`<div class="fallback"><div><p><strong>${esc(name)}</strong></p><p class="muted small">În aplicația finală documentul se deschide chiar aici, pe tot ecranul.<br>În previzualizare îl poți deschide în Drive.</p>${link?`<p><a href="${esc(link)}" target="_blank" rel="noopener">Deschide în Drive</a></p>`:""}</div></div>`
+    :`<div class="vbody" id="vbody"><div class="vmsg">Se deschide documentul…</div></div>`;
+  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="vclose">Închide</button><h2>${esc(name)}</h2>${canRender&&isPdfable?`<button class="vbtn" type="button" id="vzoom" aria-label="Mărește">100%</button>`:""}</div></header>${body}`;
   document.body.append(el);document.body.style.overflow="hidden";
-  const close=()=>{el.remove();document.body.style.overflow=""};
+  let urls=[],alive=true;
+  const close=()=>{alive=false;urls.forEach(u=>URL.revokeObjectURL(u));el.remove();document.body.style.overflow=""};
   el.querySelector("#vclose").onclick=close;
   el.addEventListener("keydown",e=>{if(e.key==="Escape")close()});
   el.querySelector("#vclose").focus();
+  if(!canRender)return;
+  const box=el.querySelector("#vbody");
+  const fail=msg=>{box.innerHTML=`<div class="vmsg"><p>${esc(msg)}</p>${link?`<p><a href="${esc(link)}" target="_blank" rel="noopener">Deschide în Drive</a></p>`:""}</div>`};
+  if(!isImg&&!isPdfable){fail("Acest tip de fișier nu poate fi afișat în aplicație.");return}
+  S.api.file(id,mime).then(async blob=>{
+    if(!alive)return;
+    if(isImg){const u=URL.createObjectURL(blob);urls.push(u);box.innerHTML=`<img class="vimg" src="${u}" alt="${esc(name)}">`;return}
+    const lib=await loadPdfJs();
+    const pdf=await lib.getDocument({data:await blob.arrayBuffer()}).promise;
+    let zoom=1;
+    const draw=async()=>{
+      box.innerHTML="";const w=Math.min(box.clientWidth-16,1100)*zoom;const dpr=Math.min(window.devicePixelRatio||1,2.5);
+      for(let p=1;p<=pdf.numPages&&alive;p++){
+        const page=await pdf.getPage(p);const v0=page.getViewport({scale:1});const sc=w/v0.width;const v=page.getViewport({scale:sc*dpr});
+        const c=document.createElement("canvas");c.width=Math.floor(v.width);c.height=Math.floor(v.height);c.style.width=Math.floor(v.width/dpr)+"px";c.className="vpage";
+        box.append(c);await page.render({canvasContext:c.getContext("2d"),viewport:v}).promise;
+      }
+    };
+    await draw();
+    const zb=el.querySelector("#vzoom");if(zb)zb.onclick=()=>{zoom=zoom>=2?1:zoom+0.5;zb.textContent=Math.round(zoom*100)+"%";draw()};
+  }).catch(e=>fail(e&&e.status===403||e&&e.status===404?"Nu ai acces la acest document.":"Documentul nu s-a putut deschide. Verifică conexiunea și încearcă din nou."));
+}
+let _pdfjs=null;
+function loadPdfJs(){
+  if(_pdfjs)return _pdfjs;
+  _pdfjs=new Promise((res,rej)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.onload=()=>{window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";res(window.pdfjsLib)};
+    s.onerror=()=>{_pdfjs=null;rej(new Error("pdfjs"))};document.head.append(s)});
+  return _pdfjs;
 }
 
 /* ============ PORNIRE ============ */
@@ -601,7 +644,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-1";
+const APP_VERSION="2026.10.17-2";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
