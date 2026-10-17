@@ -221,7 +221,7 @@ const CONFIG = {
   SHOW_CONTACTS: true,     // telefon și e-mail în lista fraților
   MEETING_TIME: "19:00",
   MEETING_PLACE: "Templul din Feleac · HillHouse",
-  DRESS_CODE: "Costum negru, cămașă albă, cravată neagră, mănuși albe, pantofi negri.",
+  DRESS_CODE: "Costum negru, cămașă albă, cravată neagră, pantofi negri, regalia.",
   MAPS_URL: "https://www.google.com/maps/search/?api=1&query=HillHouse%2C%20Feleacu%20534%2C%20Feleacu%2C%20Cluj",
   WAZE_URL: "https://waze.com/ul?q=Feleacu%20534%2C%20Feleacu%2C%20Cluj&navigate=yes",
   PREVIEW_ME: "Coca Mihai",
@@ -363,6 +363,7 @@ const IC={
   web:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
   fb:'<path d="M14 8h2.5V4.5H14c-2.2 0-4 1.8-4 4V11H7.5v3.5H10V21h3.5v-6.5H16l.5-3.5h-3V8.8c0-.4.3-.8.5-.8z"/>',
   in:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>',
+  temple:'<path d="M3 9l9-5 9 5M5 9v9M9.5 9v9M14.5 9v9M19 9v9M3 20h18"/>',
   pin:'<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
   out:'<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
   ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>'
@@ -372,7 +373,7 @@ const CREST='<img class="crestimg" src="logo.png" width="52" height="52" alt="Si
 
 /* ============ STARE ============ */
 const S={api:null,me:null,tab:"home",data:{},err:{},loading:true};
-const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situația mea","me"],["lib","Bibliotecă","lib"],["bros","Frați","bros"]];
+const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situația mea","me"],["lib","Bibliotecă","lib"],["bros","Loji","temple"]];
 
 /* ============ ÎNCĂRCARE ============ */
 async function loadAll(){
@@ -539,7 +540,8 @@ function vHome(v){
     h+=`<section class="card next" aria-label="Următoarea ținută"><div class="label">Următoarea ținută regulară${days===0?" · astăzi":days===1?" · mâine":` · în ${days} zile`}</div>
       <div class="when">${esc(cap(fmtLong(nx.d)))}, ${CONFIG.MEETING_TIME}</div><div class="where">${esc(CONFIG.MEETING_PLACE)}</div>
       ${acts.length?`<div class="acts">${acts.join("")}</div>`:`<div class="where" style="margin-top:10px">Convocatorul apare aici imediat ce e publicat.</div>`}
-      <div class="dress"><span class="label">Ținuta</span> ${esc(CONFIG.DRESS_CODE)}</div>
+      <div class="dress" id="dress"><span class="label">Ținuta</span> ${esc(CONFIG.DRESS_CODE)}</div>
+      <div class="dress" id="agapa" hidden></div>
       <div class="acts"><a class="chipbtn" href="${CONFIG.MAPS_URL}" target="_blank" rel="noopener">${svg("pin",16)}Google Maps</a><a class="chipbtn" href="${CONFIG.WAZE_URL}" target="_blank" rel="noopener">${svg("pin",16)}Waze</a></div></section>`;
   }
   // pulsul lojii
@@ -563,6 +565,27 @@ function vHome(v){
   }
   h+=`<div class="sec-title">Loja în lume</div><div class="card"><ul class="list">${CONFIG.LINKS.map(([t,sub,url,ic])=>`<li class="item" style="grid-template-columns:1fr"><a class="rowbtn" href="${esc(url)}" target="_blank" rel="noopener"><span class="doci">${svg(ic,18)}</span><span><span class="t" style="display:block">${esc(t)}</span><span class="s">${esc(sub)}</span></span><span class="chev">${svg("ext",16)}</span></a></li>`).join("")}</ul></div>`;
   v.innerHTML=h;
+  if(nx){const t=M.tinute.find(x=>sameDay(x.d,nx.d));if(t&&t.conv[0])fillAgapa(t.conv[0])}
+}
+async function fillAgapa(f){
+  if(!$("#agapa")||!S.api.file)return;
+  const key="l216.conv."+f.id+"."+(f.modifiedTime||"");
+  let info=null;try{info=JSON.parse(localStorage.getItem(key)||"null")}catch(_){}
+  if(!info){
+    try{
+      const blob=await S.api.file(f.id,f.mimeType);const lib=await loadPdfJs();
+      const pdf=await lib.getDocument({data:await blob.arrayBuffer()}).promise;let all="";
+      for(let p=1;p<=pdf.numPages;p++){const c=await (await pdf.getPage(p)).getTextContent();all+=" "+c.items.map(i=>i.str).join(" ")}
+      const n=all.replace(/\s+/g," ").replace(/ (?=[ăâîșțĂÂÎȘȚ](?:\W|$))/g,"");
+      const m=/agap\s?[ăa][^.;]{0,40}/i.exec(n);
+      const agapa=!m?"":/non\s*-?\s*ritual/i.test(m[0])?"Agapă non-ritualică":/ritual/i.test(m[0])?"Agapă ritualică":"Agapă";
+      const d=/dress\s*code\s*:\s*([^.]{5,160}\.)/i.exec(n);
+      info={agapa,dress:d?d[1].trim():""};
+      try{localStorage.setItem(key,JSON.stringify(info))}catch(_){}
+    }catch(_){return}
+  }
+  const a=$("#agapa");if(a&&info.agapa){a.innerHTML=`<span class="label">După ținută</span> ${esc(info.agapa)}`;a.hidden=false}
+  const dr=$("#dress");if(dr&&info.dress)dr.innerHTML=`<span class="label">Ținuta</span> ${esc(info.dress)}`;
 }
 
 function vTinute(v){
@@ -638,19 +661,7 @@ function vLib(v){
   v.innerHTML=h;
 }
 
-function vBros(v){
-  const seg=`<div class="seg" role="tablist" aria-label="Vedere">${[["frati","Frații lojii"],["loji","Loji din Cluj"]].map(([k,l])=>`<button type="button" role="tab" id="bseg-${k}" aria-selected="${(S.bview||"frati")===k}" data-bseg="${k}">${l}</button>`).join("")}</div>`;
-  const bindB=()=>v.querySelectorAll("[data-bseg]").forEach(b=>b.onclick=()=>{S.bview=b.dataset.bseg;vBros(v)});
-  if(S.bview==="loji"){v.innerHTML=seg+vLoji();bindB();return}
-  const q=S.q||"";
-  const list=M.bros.filter(b=>!q||norm(b.nume+" "+b.prenume+" "+b.functie+" "+b.profesie).includes(norm(q)));
-  v.innerHTML=seg+`<label class="label" for="q">Caută un frate</label><input class="search" id="q" type="search" placeholder="Nume, funcție sau profesie" value="${esc(q)}" autocomplete="off">
-  <div class="small muted">${M.bros.length} frați activi</div>
-  <div class="card" style="padding-block:6px"><div id="blist">${list.map(b=>`<details class="bro"><summary><span class="ini">${esc((b.prenume[0]||"")+(b.nume[0]||""))}</span><span><span class="t" style="display:block;font-weight:500">${esc(b.prenume+" "+b.nume)}</span><span class="s">${esc(b.grad)}</span></span>${b.functie?`<span class="tag">${esc(b.functie)}</span>`:"<span></span>"}</summary>
-    <div class="info">${b.profesie?`<span>${esc(b.profesie)}</span>`:""}${CONFIG.SHOW_CONTACTS&&b.tel?`<span>Telefon: <a href="tel:${esc(String(b.tel).replace(/\s/g,""))}">${esc(fmtTel(b.tel))}</a></span>`:""}${CONFIG.SHOW_CONTACTS&&b.email?`<span>E-mail: <a href="mailto:${esc(b.email)}">${esc(b.email)}</a></span>`:""}${b.demnitar?`<span>Demnitar MLNR: ${esc(b.demnitar)}</span>`:""}</div></details>`).join("")||`<div class="state" style="margin:8px 0">Niciun frate nu se potrivește căutării.</div>`}</div></div>`;
-  bindB();
-  const inp=$("#q");inp.oninput=()=>{S.q=inp.value;const pos=inp.selectionStart;vBros(v);const n=$("#q");n.focus();try{n.setSelectionRange(pos,pos)}catch(_){}};
-}
+function vBros(v){v.innerHTML=vLoji()}
 function vLoji(){
   if(S.err.lodges)return sectionErr("lodges","Lista lojilor");
   if(!M.lodges.length)return `<div class="state">Lista lojilor din Cluj va apărea aici.</div>`;
@@ -749,7 +760,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-13";
+const APP_VERSION="2026.10.17-15";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
