@@ -387,7 +387,15 @@ function build(){
     const reg=minutul.filter(x=>d&&sameDay(x.d,d));
     const nr=(/tinuta\s*(\d+)/i.exec(norm(f.name))||[])[1];
     return {id:f.id,name:f.name,d,nr,minuta,conv,photos,reg};
-  }).filter(t=>t.d).sort((a,b)=>b.d-a.d);
+  }).filter(t=>t.d);
+  // următoarea ținută apare chiar fără folder; ținutele de după ea rămân ascunse
+  const nx=M.next;
+  if(nx&&!M.tinute.some(t=>sameDay(t.d,nx.d))){
+    const idx=M.dates.indexOf(nx)+1;
+    M.tinute.push({id:"",name:"",d:nx.d,nr:String(idx),minuta:[],conv:[],photos:[],reg:minutul.filter(x=>sameDay(x.d,nx.d))});
+  }
+  const limit=nx?nx.d:today();
+  M.tinute=M.tinute.filter(t=>t.d<=limit||sameDay(t.d,limit)).sort((a,b)=>b.d-a.d);
   // planificate fără folder încă: adăugăm următoarea ținută pentru cardul de acasă
   // bibliotecă
   const top=S.data.libTop||[];const sub=S.data.libFiles||[];
@@ -495,20 +503,17 @@ function vTinute(v){
   if(!M.tinute.length&&!S.err.tinuteTop)h+=`<div class="state">Încă nu există ținute în arhivă.</div>`;
   M.tinute.forEach(t=>{
     const mine=M.me&&M.pres.get(M.me.key);const j=M.dates.findIndex(x=>sameDay(x.d,t.d));
-    const st=mine&&j>=0?mine[j]:"";
+    const st=mine&&j>=0&&t.d<=today()?mine[j]:"";
     const docs=[];
     t.minuta.forEach(f=>docs.push(docBtn(f,"Planșa ținutei (minuta)","Aprobată în ținuta următoare")));
     t.conv.forEach(f=>docs.push(docBtn(f,"Convocator","Ordinea de zi")));
-    t.reg.forEach(f=>docs.push(docBtn(f,"Minutul de regularitate",f.label,"pen")));
+    t.reg.forEach(f=>docs.push(docBtn(f,"Minutul de regularitate",f.label==="Minutul de regularitate"?"Planșa zilei":f.label,"pen")));
     h+=`<section class="card"><div class="tinuta-h"><h3>${esc(cap(fmtLong(t.d)))}</h3>${st?`<span class="pill ${st}">${{P:"Prezent",M:"Absent motivat",N:"Absent nemotivat"}[st]}</span>`:""}</div>
-      <div class="small muted">Ținuta ${esc(t.nr?String(+t.nr):"")} · anul masonic 6026–6027</div>
+      <div class="small muted">${t.d>today()?"Următoarea ținută · ":""}Ținuta ${esc(t.nr?String(+t.nr):"")} · anul masonic 6026–6027</div>
       ${docs.length?`<ul class="list" style="margin-top:8px">${docs.join("")}</ul>`:`<div class="small muted" style="margin-top:8px">Documentele ținutei apar aici după ce sunt publicate.</div>`}
       ${t.photos.length?`<div class="label" style="margin-top:10px">Fotografii</div><div class="photos">${t.photos.map((p,i)=>`<button class="photo" type="button" data-open="${esc(p.id)}" data-name="Fotografie ${i+1} · ${esc(fmtDM(t.d))}" data-mime="${esc(p.mimeType)}" data-link="${esc(p.webViewLink||"")}">${svg("img",22)}</button>`).join("")}</div>`:""}
     </section>`;
   });
-  // minutul de regularitate pentru ținute viitoare
-  const up=M.minutul.filter(x=>x.d&&x.d>=today()&&!M.tinute.some(t=>sameDay(t.d,x.d))).sort((a,b)=>a.d-b.d);
-  if(up.length)h=`<div class="card"><div class="label">Minutul de regularitate · ținute viitoare</div><ul class="list" style="margin-top:6px">${up.map(f=>docBtn(f,cap(fmtDM(f.d)),f.label,"pen")).join("")}</ul></div>`+h;
   v.innerHTML=h;
 }
 
@@ -644,7 +649,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-2";
+const APP_VERSION="2026.10.17-3";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
