@@ -716,7 +716,7 @@ function vLib(v){
 
 function vBros(v){
   if(S.err.lodges||!M.lodges.length){v.innerHTML=vLoji();return}
-  v.innerHTML=`<input class="search" type="search" id="lojiQ" placeholder="Caută lojă, număr, oraș sau secretar" autocomplete="off" aria-label="Caută o lojă" style="margin-bottom:6px"><div id="lojiList">${vLoji("")}</div>`;
+  v.innerHTML=`<div class="card" style="margin-bottom:10px"><p style="margin:0 0 6px">Aici găsiți lojile Zonei V, ca să vă puteți planifica vizitele. Înainte de o vizită, luați legătura cu Secretarul lojii gazdă. Ne confirmă data ținutei și gradul la care lucrează.</p><p style="margin:0 0 6px"><strong>Ucenicii și Calfele</strong> merg în vizită doar însoțiți de un Maestru.</p><p class="small muted" style="margin:0">După vizită, spuneți-i Secretarului nostru, ca să o trecem în registru.</p></div><input class="search" type="search" id="lojiQ" placeholder="Caută lojă, număr, oraș sau secretar" autocomplete="off" aria-label="Caută o lojă" style="margin-bottom:6px"><div id="lojiList">${vLoji("")}</div>`;
   const q=v.querySelector("#lojiQ"),list=v.querySelector("#lojiList");
   q.addEventListener("input",()=>{list.innerHTML=vLoji(q.value)});
 }
@@ -823,7 +823,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-22";
+const APP_VERSION="2026.10.18-01";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
