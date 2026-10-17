@@ -374,7 +374,7 @@ function consumeRedirect(){
   store.set(AUTH_KEY,JSON.stringify({token,exp}));
   return {token};
 }
-function logout(){store.del(AUTH_KEY);store.del(HINT_KEY);location.reload()}
+function logout(){try{Object.keys(localStorage).filter(k=>k.indexOf("l216.")===0).forEach(k=>localStorage.removeItem(k))}catch(_){}location.reload()}
 
 /* ============ ICONIȚE ============ */
 const IC={
@@ -407,16 +407,26 @@ const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situa�
 async function loadAll(){
   const A=S.api,t0=today(),to=new Date(t0);to.setDate(to.getDate()+60);
   if(A.bootstrap){
-    try{
-      const d=await A.bootstrap();
+    const CK="l216.cache."+(S.me.email||"");
+    const apply=d=>{
+      S.err={};
       ["roster","presence","visits","plates","lodges","news","tinuteTop","tinuteFiles","minutul","libTop","libFiles"].forEach(k=>S.data[k]=d[k]||[]);
       S.data.events=(d.events||[]).map(evMap);
       if(d.errors&&d.errors.events)S.err.events={status:500};
       if(!CONFIG.SHOW_NEWS)S.data.news=[];
       if(d.me)S.me.key=d.me.key;
+    };
+    // 1) afișare imediată din ultima versiune salvată pe acest dispozitiv
+    let cached=null;try{cached=JSON.parse(localStorage.getItem(CK)||"null")}catch(_){}
+    if(cached){apply(cached);S.loading=false;build()}
+    // 2) date proaspete în fundal
+    try{
+      const d=await A.bootstrap();
+      apply(d);try{localStorage.setItem(CK,JSON.stringify(d))}catch(_){}
     }catch(e){
       if(e.status===401){store.del(AUTH_KEY);startLogin(true);return}
-      S.err.roster=e;
+      if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
+      else if(!cached)S.err.roster=e;
     }
     S.loading=false;build();return;
   }
@@ -804,7 +814,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-20";
+const APP_VERSION="2026.10.17-21";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
