@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}html,body{height:100%}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head><body>
-<title>Transilvania 216 · Frați</title>
+<title>Transilvania 216 · Acces membri</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -487,7 +487,7 @@ function render(){
 
 function accessDenied(){
   const st=S.err.roster&&S.err.roster.status;
-  if(st===403||st===404)return `<div class="state err"><strong>Contul ${esc(S.me.email||"")} nu are acces la documentele lojii.</strong><br>Aplicația este rezervată fraților R∴L∴ Transilvania nr. 216. Dacă ești frate al lojii, scrie-i Secretarului adresa contului tău Google.<br><br><button class="gbtn" type="button" onclick="logout()">Schimbă contul</button></div>`;
+  if(st===403||st===404)return `<div class="state err"><strong>Contul ${esc(S.me.email||"")} nu are acces.</strong><br>Dacă ești membru, transmite Secretariatului adresa acestui cont.<br><br><button class="gbtn" type="button" onclick="logout()">Schimbă contul</button></div>`;
   return `<div class="state err"><strong>Nu am putut încărca datele lojii.</strong><br>${esc(errText(S.err.roster))}<br><br><button class="gbtn" type="button" onclick="location.reload()">Încearcă din nou</button></div>`;
 }
 function errText(e){
@@ -688,11 +688,10 @@ function loginScreen(msg){
   $("#app").innerHTML=`<div class="band" style="min-height:100%"><div class="wrap login"><div class="box">
     ${CREST.replace('width="52" height="52"','width="112" height="112"')}
     <div class="eyebrow">R∴L∴ Transilvania nr. 216 · Or∴ Cluj</div>
-    <h1>Spațiul fraților</h1>
-    <p style="color:var(--band-muted);margin:0">Ținute, minute, situația ta și biblioteca lojii, într-un singur loc.</p>
+    <h1>Acces membri</h1>
     <button class="gbtn" type="button" id="login"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Intră cu contul Google</button>
     ${msg?`<p style="color:#ffb4ad;margin:0;font-size:14px">${esc(msg)}</p>`:""}
-    <p class="notice" style="color:var(--band-muted)">Accesul este rezervat fraților lojii. Documentele rămân în Drive-ul lojii și sunt vizibile doar conturilor autorizate.</p>
+    <p class="notice" style="color:var(--band-muted)">Acces rezervat membrilor.</p>
   </div></div></div>`;
   $("#login").onclick=()=>startLogin(false);
 }
@@ -709,7 +708,7 @@ async function boot(){
   if(!token){
     if(r&&r.error&&r.error!=="access_denied"&&store.get(HINT_KEY)&&r.error!=="interaction_required"&&r.error!=="login_required"&&r.error!=="consent_required"){loginScreen("Autentificarea nu a reușit. Încearcă din nou.");return}
     if(!r&&store.get(HINT_KEY)){startLogin(true);return}
-    loginScreen(r&&r.error==="access_denied"?"Fără acordul tău, aplicația nu poate citi documentele lojii.":"");return;
+    loginScreen(r&&r.error==="access_denied"?"Autentificarea a fost anulată.":"");return;
   }
   S.api=googleAdapter(token);
   try{S.me=await S.api.me();store.set(HINT_KEY,S.me.email||"")}
@@ -719,7 +718,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-11";
+const APP_VERSION="2026.10.17-12";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
