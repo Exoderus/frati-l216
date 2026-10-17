@@ -49,7 +49,8 @@ a{color:var(--gold-ink)}
 .band{background:var(--band);color:var(--band-fg)}
 .band .wrap{padding-block:18px 20px}
 .crest{display:flex;align-items:center;gap:12px}
-.crest svg{flex:none}
+.crest svg,.crestimg{flex:none}
+.crestimg{border-radius:50%;box-shadow:0 0 0 2px rgb(214 178 94 / .55);background:#fff;display:block}
 .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
 .band h1{font-family:var(--f-display);font-weight:700;font-size:30px;line-height:1.05;margin:4px 0 0;text-wrap:balance}
 .band p{margin:6px 0 0;color:var(--band-muted);font-size:14px}
@@ -201,7 +202,12 @@ const CONFIG = {
   SHOW_CONTACTS: true,     // telefon și e-mail în lista fraților
   MEETING_TIME: "19:00",
   MEETING_PLACE: "Templul din Feleac · HillHouse",
-  PREVIEW_ME: "Coca Mihai"
+  PREVIEW_ME: "Coca Mihai",
+  LINKS: [
+    ["Site-ul lojii","transylvanialodge216.org","https://transylvanialodge216.org/","web"],
+    ["Facebook","Transylvania Lodge 216","https://www.facebook.com/profile.php?id=61576480874529","fb"],
+    ["LinkedIn","Transylvania Lodge No. 216","https://www.linkedin.com/company/transylvania-lodge-no-216/","in"]
+  ]
 };
 /* ==================================== */
 
@@ -331,10 +337,14 @@ const IC={
   img:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/>',
   pen:'<path d="M4 20l4-1 11-11-3-3L5 16z"/>',
   chev:'<path d="M9 6l6 6-6 6"/>',
-  folder:'<path d="M3 6h6l2 2h10v11H3z"/>'
+  folder:'<path d="M3 6h6l2 2h10v11H3z"/>',
+  web:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
+  fb:'<path d="M14 8h2.5V4.5H14c-2.2 0-4 1.8-4 4V11H7.5v3.5H10V21h3.5v-6.5H16l.5-3.5h-3V8.8c0-.4.3-.8.5-.8z"/>',
+  in:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>',
+  ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>'
 };
 const svg=(n,s=22,w=1.7)=>`<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
-const CREST='<svg width="42" height="42" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="#d6b25e" stroke-width="2" stroke-linecap="round"><path d="M24 6 L10 38 M24 6 L38 38"/><circle cx="24" cy="7" r="2.2" fill="#d6b25e"/><path d="M8 28 L24 42 L40 28"/></g><circle cx="24" cy="26" r="2" fill="#d6b25e"/></svg>';
+const CREST='<img class="crestimg" src="logo.png" width="52" height="52" alt="Sigla R∴L∴ Transilvania nr. 216">';
 
 /* ============ STARE ============ */
 const S={api:null,me:null,tab:"home",data:{},err:{},loading:true};
@@ -515,6 +525,7 @@ function vHome(v){
   if(M.bdays.length){
     h+=`<div class="sec-title">Aniversări în următoarele două săptămâni</div><div class="card"><ul class="list">${M.bdays.map(x=>`<li class="item"><div class="datebox"><b>${x.n.getDate()}</b><span>${RO_MONTHS[x.n.getMonth()].slice(0,3)}</span></div><div><div class="t">Fr∴ ${esc(x.b.apel+" "+x.b.nume)}</div><div class="s">${sameDay(x.n,today())?"Astăzi":esc(cap(x.n.toLocaleDateString("ro-RO",{weekday:"long"})))}</div></div><span></span></li>`).join("")}</ul></div>`;
   }
+  h+=`<div class="sec-title">Loja în lume</div><div class="card"><ul class="list">${CONFIG.LINKS.map(([t,sub,url,ic])=>`<li class="item" style="grid-template-columns:1fr"><a class="rowbtn" href="${esc(url)}" target="_blank" rel="noopener"><span class="doci">${svg(ic,18)}</span><span><span class="t" style="display:block">${esc(t)}</span><span class="s">${esc(sub)}</span></span><span class="chev">${svg("ext",16)}</span></a></li>`).join("")}</ul></div>`;
   v.innerHTML=h;
 }
 
@@ -659,7 +670,7 @@ function loadPdfJs(){
 /* ============ PORNIRE ============ */
 function loginScreen(msg){
   $("#app").innerHTML=`<div class="band" style="min-height:100%"><div class="wrap login"><div class="box">
-    ${CREST.replace('width="42" height="42"','width="72" height="72"')}
+    ${CREST.replace('width="52" height="52"','width="112" height="112"')}
     <div class="eyebrow">R∴L∴ Transilvania nr. 216 · Or∴ Cluj</div>
     <h1>Spațiul fraților</h1>
     <p style="color:var(--band-muted);margin:0">Ținute, minute, situația ta și biblioteca lojii, într-un singur loc.</p>
@@ -692,7 +703,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-7";
+const APP_VERSION="2026.10.17-8";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
