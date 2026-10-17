@@ -103,6 +103,8 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .newsitem h3{font-family:var(--f-display);font-size:21px;font-weight:700;margin:4px 0 4px;text-wrap:balance}
 .newsitem p{margin:0;font-size:15px;color:var(--fg)}
 .newslink{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-weight:600;font-size:14px;color:var(--gold-ink);text-decoration:none}
+.lnav{display:flex;gap:6px;margin:4px 0 2px}
+.navbtn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--gold-soft);color:var(--gold-ink);font-size:13px;font-weight:600;text-decoration:none}
 .lodge{padding:11px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
 .lodge:first-child{border-top:none}
 .lh{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -385,7 +387,7 @@ async function loadAll(){
     plates:()=>A.sheet(CONFIG.SHEETS.plates,"'Planșe'!A5:J1000"),
     trunchi:()=>CONFIG.SHOW_TRUNCHI?A.sheet(CONFIG.SHEETS.trunchi,"'Situatie'!A3:J200"):Promise.resolve(null),
     events:()=>A.events(CONFIG.CALENDAR_ID,t0,to),
-    lodges:()=>A.sheet(CONFIG.SHEETS.lodges,"A2:I100"),
+    lodges:()=>A.sheet(CONFIG.SHEETS.lodges,"A2:J100"),
     news:()=>CONFIG.SHOW_NEWS?A.sheet(CONFIG.SHEETS.news,"A2:E300"):Promise.resolve([]),
     tinuteTop:()=>A.children([CONFIG.FOLDERS.tinute]),
     minutul:()=>A.children([CONFIG.FOLDERS.minutul]),
@@ -465,7 +467,7 @@ function build(){
   });
   M.lib=groups;
   // loji
-  M.lodges=(S.data.lodges||[]).filter(r=>r[0]).map(r=>({nume:r[0],nr:r[1]||"",orient:r[2]||"",tinute:r[3]||"",contact:r[4]||"",functie:r[5]||"",tel:r[6]||"",email:r[7]||"",valid:r[8]||""}));
+  M.lodges=(S.data.lodges||[]).filter(r=>r[0]).map(r=>({nume:r[0],nr:r[1]||"",orient:r[2]||"",tinute:r[3]||"",contact:r[4]||"",functie:r[5]||"",tel:r[6]||"",email:r[7]||"",valid:r[8]||"",adresa:String(r[9]||"").trim()}));
   // știri
   M.news=(S.data.news||[]).filter(r=>r[2]).map(r=>{const pub=parseDMY(r[0])||t0;let until=parseDMY(r[1]);if(!until){until=new Date(pub);until.setDate(until.getDate()+14)}return {pub,until,titlu:r[2],text:r[3]||"",link:String(r[4]||"").trim()}}).filter(n=>n.pub<=t0&&n.until>=t0).sort((a,b)=>b.pub-a.pub);
   // evenimente
@@ -667,7 +669,7 @@ function vLoji(){
   if(!M.lodges.length)return `<div class="state">Lista lojilor din Cluj va apărea aici.</div>`;
   const orients=[...new Set(M.lodges.map(l=>l.orient||"Cluj"))].sort((a,b)=>(a==="Cluj"?-1:b==="Cluj"?1:a.localeCompare(b,"ro")));
   const old=M.lodges.some(l=>/verific/i.test(l.valid));
-  return `${old?`<div class="small muted">Datele marcate „de verificat” provin dintr-o listă mai veche; confirmați-le la Secretariat înainte de o vizită.</div>`:""}`+orients.map(o=>`<div class="sec-title">Orientul ${esc(o)}</div><div class="card" style="padding-block:6px">${M.lodges.filter(l=>(l.orient||"Cluj")===o).map(l=>`<div class="lodge"><div class="lh"><span class="t">R∴L∴ ${esc(l.nume)}${l.nr?` nr. ${esc(l.nr)}`:""}</span>${/verific/i.test(l.valid)?`<span class="tag">de verificat</span>`:""}</div>${l.tinute?`<div class="s">${esc(l.tinute)}</div>`:""}${l.contact?`<div class="s">${esc(l.contact)}${l.functie?` · ${esc(l.functie)}`:""}</div>`:""}<div class="lc">${l.tel?`<a href="tel:${esc(String(l.tel).replace(/\s/g,""))}">${esc(l.tel)}</a>`:""}${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>`:""}</div></div>`).join("")}</div>`).join("");
+  return `${old?`<div class="small muted">Datele marcate „de verificat” provin dintr-o listă mai veche; confirmați-le la Secretariat înainte de o vizită.</div>`:""}`+orients.map(o=>`<div class="sec-title">Orientul ${esc(o)}</div><div class="card" style="padding-block:6px">${M.lodges.filter(l=>(l.orient||"Cluj")===o).map(l=>`<div class="lodge"><div class="lh"><span class="t">R∴L∴ ${esc(l.nume)}${l.nr?` nr. ${esc(l.nr)}`:""}</span>${/verific/i.test(l.valid)?`<span class="tag">de verificat</span>`:""}</div>${l.tinute?`<div class="s">${esc(l.tinute)}</div>`:""}${l.contact?`<div class="s">${esc(l.contact)}${l.functie?` · ${esc(l.functie)}`:""}</div>`:""}${l.adresa?`<div class="s">${esc(l.adresa)}</div><div class="lnav"><a class="navbtn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.adresa)}" target="_blank" rel="noopener">${svg("pin",14)}Google Maps</a><a class="navbtn" href="https://waze.com/ul?q=${encodeURIComponent(l.adresa)}&navigate=yes" target="_blank" rel="noopener">${svg("pin",14)}Waze</a></div>`:""}<div class="lc">${l.tel?`<a href="tel:${esc(String(l.tel).replace(/\s/g,""))}">${esc(l.tel)}</a>`:""}${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>`:""}</div></div>`).join("")}</div>`).join("");
 }
 function fmtTel(t){t=String(t).replace(/\D/g,"");if(t.length===9)t="0"+t;return t.replace(/^(\d{4})(\d{3})(\d{3})$/,"$1 $2 $3")}
 
@@ -760,7 +762,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-15";
+const APP_VERSION="2026.10.17-16";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
