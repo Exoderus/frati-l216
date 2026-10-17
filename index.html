@@ -103,6 +103,16 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .newsitem h3{font-family:var(--f-display);font-size:21px;font-weight:700;margin:4px 0 4px;text-wrap:balance}
 .newsitem p{margin:0;font-size:15px;color:var(--fg)}
 .newslink{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-weight:600;font-size:14px;color:var(--gold-ink);text-decoration:none}
+.lodge{padding:11px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+.lodge:first-child{border-top:none}
+.lh{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.lh .t{font-weight:600}
+.lodge .s{font-size:13px;color:var(--muted)}
+.lc{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:14px}
+.lc a{user-select:text;overflow-wrap:anywhere}
+.dress{margin-top:12px;font-size:13px;color:var(--band-muted)}
+.dress .label{margin-right:6px}
+a.chipbtn{text-decoration:none}
 /* Ținute */
 .tinuta-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .tinuta-h h3{font-family:var(--f-display);font-size:22px;font-weight:700;margin:0}
@@ -198,7 +208,8 @@ const CONFIG = {
     visits:   "1Q_oiZyeHmlJ8Fd5EWAP2LccEsPrPKVHkVBsqZ3lAciw",
     plates:   "1YqHYz7_W6Yjw8m1BTzgWd1uvK5-zrAgMz6IX3NQ2rPQ",
     trunchi:  "16TcMEn5ZY5x1qB75iM3ss4BUet44p-l38bDdpKAr1Lk",
-    news:     "1Lo_7AdiMoOA6li6yo2e62JbIVjwzTJ3PausRyohLjBQ"
+    news:     "1Lo_7AdiMoOA6li6yo2e62JbIVjwzTJ3PausRyohLjBQ",
+    lodges:   "1Etk_aEJ_3PKXdCgPt7T21v9jKtfAYchN_8BHHJK-4c0"
   },
   FOLDERS: {
     tinute:  "12BoNMqN_mRn1tMZ4FvrPAPq3PnNM6HeT",
@@ -210,6 +221,9 @@ const CONFIG = {
   SHOW_CONTACTS: true,     // telefon și e-mail în lista fraților
   MEETING_TIME: "19:00",
   MEETING_PLACE: "Templul din Feleac · HillHouse",
+  DRESS_CODE: "Costum negru, cămașă albă, cravată neagră, mănuși albe, pantofi negri.",
+  MAPS_URL: "https://www.google.com/maps/search/?api=1&query=HillHouse%2C%20Feleacu%20534%2C%20Feleacu%2C%20Cluj",
+  WAZE_URL: "https://waze.com/ul?q=Feleacu%20534%2C%20Feleacu%2C%20Cluj&navigate=yes",
   PREVIEW_ME: "Coca Mihai",
   LINKS: [
     ["Site-ul lojii","transylvanialodge216.org","https://transylvanialodge216.org/","web"],
@@ -349,6 +363,7 @@ const IC={
   web:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
   fb:'<path d="M14 8h2.5V4.5H14c-2.2 0-4 1.8-4 4V11H7.5v3.5H10V21h3.5v-6.5H16l.5-3.5h-3V8.8c0-.4.3-.8.5-.8z"/>',
   in:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>',
+  pin:'<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
   out:'<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
   ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>'
 };
@@ -369,6 +384,7 @@ async function loadAll(){
     plates:()=>A.sheet(CONFIG.SHEETS.plates,"'Planșe'!A5:J1000"),
     trunchi:()=>CONFIG.SHOW_TRUNCHI?A.sheet(CONFIG.SHEETS.trunchi,"'Situatie'!A3:J200"):Promise.resolve(null),
     events:()=>A.events(CONFIG.CALENDAR_ID,t0,to),
+    lodges:()=>A.sheet(CONFIG.SHEETS.lodges,"A2:I100"),
     news:()=>CONFIG.SHOW_NEWS?A.sheet(CONFIG.SHEETS.news,"A2:E300"):Promise.resolve([]),
     tinuteTop:()=>A.children([CONFIG.FOLDERS.tinute]),
     minutul:()=>A.children([CONFIG.FOLDERS.minutul]),
@@ -440,13 +456,15 @@ function build(){
   // bibliotecă
   const top=S.data.libTop||[];const sub=S.data.libFiles||[];
   const groups=[];
-  const loose=top.filter(f=>f.mimeType!=="application/vnd.google-apps.folder"&&f.id!==CONFIG.SHEETS.news);
+  const loose=top.filter(f=>f.mimeType!=="application/vnd.google-apps.folder"&&f.id!==CONFIG.SHEETS.news&&f.id!==CONFIG.SHEETS.lodges);
   if(loose.length)groups.push({name:"Documente",files:loose});
   top.filter(f=>f.mimeType==="application/vnd.google-apps.folder").forEach(g=>{
     const fs=sub.filter(x=>x.parent===g.id&&x.mimeType!=="application/vnd.google-apps.folder");
     groups.push({name:g.name.replace(/^\d+[\.\s-]*/,""),files:fs});
   });
   M.lib=groups;
+  // loji
+  M.lodges=(S.data.lodges||[]).filter(r=>r[0]).map(r=>({nume:r[0],nr:r[1]||"",orient:r[2]||"",tinute:r[3]||"",contact:r[4]||"",functie:r[5]||"",tel:r[6]||"",email:r[7]||"",valid:r[8]||""}));
   // știri
   M.news=(S.data.news||[]).filter(r=>r[2]).map(r=>{const pub=parseDMY(r[0])||t0;let until=parseDMY(r[1]);if(!until){until=new Date(pub);until.setDate(until.getDate()+14)}return {pub,until,titlu:r[2],text:r[3]||"",link:String(r[4]||"").trim()}}).filter(n=>n.pub<=t0&&n.until>=t0).sort((a,b)=>b.pub-a.pub);
   // evenimente
@@ -520,7 +538,9 @@ function vHome(v){
     const days=Math.round((nx.d-today())/864e5);
     h+=`<section class="card next" aria-label="Următoarea ținută"><div class="label">Următoarea ținută regulară${days===0?" · astăzi":days===1?" · mâine":` · în ${days} zile`}</div>
       <div class="when">${esc(cap(fmtLong(nx.d)))}, ${CONFIG.MEETING_TIME}</div><div class="where">${esc(CONFIG.MEETING_PLACE)}</div>
-      ${acts.length?`<div class="acts">${acts.join("")}</div>`:`<div class="where" style="margin-top:10px">Convocatorul apare aici imediat ce e publicat.</div>`}</section>`;
+      ${acts.length?`<div class="acts">${acts.join("")}</div>`:`<div class="where" style="margin-top:10px">Convocatorul apare aici imediat ce e publicat.</div>`}
+      <div class="dress"><span class="label">Ținuta</span> ${esc(CONFIG.DRESS_CODE)}</div>
+      <div class="acts"><a class="chipbtn" href="${CONFIG.MAPS_URL}" target="_blank" rel="noopener">${svg("pin",16)}Google Maps</a><a class="chipbtn" href="${CONFIG.WAZE_URL}" target="_blank" rel="noopener">${svg("pin",16)}Waze</a></div></section>`;
   }
   // pulsul lojii
   const n=M.bros.length||1;
@@ -619,13 +639,24 @@ function vLib(v){
 }
 
 function vBros(v){
+  const seg=`<div class="seg" role="tablist" aria-label="Vedere">${[["frati","Frații lojii"],["loji","Loji din Cluj"]].map(([k,l])=>`<button type="button" role="tab" id="bseg-${k}" aria-selected="${(S.bview||"frati")===k}" data-bseg="${k}">${l}</button>`).join("")}</div>`;
+  const bindB=()=>v.querySelectorAll("[data-bseg]").forEach(b=>b.onclick=()=>{S.bview=b.dataset.bseg;vBros(v)});
+  if(S.bview==="loji"){v.innerHTML=seg+vLoji();bindB();return}
   const q=S.q||"";
   const list=M.bros.filter(b=>!q||norm(b.nume+" "+b.prenume+" "+b.functie+" "+b.profesie).includes(norm(q)));
-  v.innerHTML=`<label class="label" for="q">Caută un frate</label><input class="search" id="q" type="search" placeholder="Nume, funcție sau profesie" value="${esc(q)}" autocomplete="off">
+  v.innerHTML=seg+`<label class="label" for="q">Caută un frate</label><input class="search" id="q" type="search" placeholder="Nume, funcție sau profesie" value="${esc(q)}" autocomplete="off">
   <div class="small muted">${M.bros.length} frați activi</div>
   <div class="card" style="padding-block:6px"><div id="blist">${list.map(b=>`<details class="bro"><summary><span class="ini">${esc((b.prenume[0]||"")+(b.nume[0]||""))}</span><span><span class="t" style="display:block;font-weight:500">${esc(b.prenume+" "+b.nume)}</span><span class="s">${esc(b.grad)}</span></span>${b.functie?`<span class="tag">${esc(b.functie)}</span>`:"<span></span>"}</summary>
     <div class="info">${b.profesie?`<span>${esc(b.profesie)}</span>`:""}${CONFIG.SHOW_CONTACTS&&b.tel?`<span>Telefon: <a href="tel:${esc(String(b.tel).replace(/\s/g,""))}">${esc(fmtTel(b.tel))}</a></span>`:""}${CONFIG.SHOW_CONTACTS&&b.email?`<span>E-mail: <a href="mailto:${esc(b.email)}">${esc(b.email)}</a></span>`:""}${b.demnitar?`<span>Demnitar MLNR: ${esc(b.demnitar)}</span>`:""}</div></details>`).join("")||`<div class="state" style="margin:8px 0">Niciun frate nu se potrivește căutării.</div>`}</div></div>`;
+  bindB();
   const inp=$("#q");inp.oninput=()=>{S.q=inp.value;const pos=inp.selectionStart;vBros(v);const n=$("#q");n.focus();try{n.setSelectionRange(pos,pos)}catch(_){}};
+}
+function vLoji(){
+  if(S.err.lodges)return sectionErr("lodges","Lista lojilor");
+  if(!M.lodges.length)return `<div class="state">Lista lojilor din Cluj va apărea aici.</div>`;
+  const orients=[...new Set(M.lodges.map(l=>l.orient||"Cluj"))].sort((a,b)=>(a==="Cluj"?-1:b==="Cluj"?1:a.localeCompare(b,"ro")));
+  const old=M.lodges.some(l=>/verific/i.test(l.valid));
+  return `${old?`<div class="small muted">Datele marcate „de verificat” provin dintr-o listă mai veche; confirmați-le la Secretariat înainte de o vizită.</div>`:""}`+orients.map(o=>`<div class="sec-title">Orientul ${esc(o)}</div><div class="card" style="padding-block:6px">${M.lodges.filter(l=>(l.orient||"Cluj")===o).map(l=>`<div class="lodge"><div class="lh"><span class="t">R∴L∴ ${esc(l.nume)}${l.nr?` nr. ${esc(l.nr)}`:""}</span>${/verific/i.test(l.valid)?`<span class="tag">de verificat</span>`:""}</div>${l.tinute?`<div class="s">${esc(l.tinute)}</div>`:""}${l.contact?`<div class="s">${esc(l.contact)}${l.functie?` · ${esc(l.functie)}`:""}</div>`:""}<div class="lc">${l.tel?`<a href="tel:${esc(String(l.tel).replace(/\s/g,""))}">${esc(l.tel)}</a>`:""}${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>`:""}</div></div>`).join("")}</div>`).join("");
 }
 function fmtTel(t){t=String(t).replace(/\D/g,"");if(t.length===9)t="0"+t;return t.replace(/^(\d{4})(\d{3})(\d{3})$/,"$1 $2 $3")}
 
@@ -718,7 +749,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-12";
+const APP_VERSION="2026.10.17-13";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
