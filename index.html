@@ -344,7 +344,7 @@ const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situa�
 async function loadAll(){
   const A=S.api,t0=today(),to=new Date(t0);to.setDate(to.getDate()+60);
   const jobs={
-    roster:()=>A.sheet(CONFIG.SHEETS.roster,"'Frați activi'!A4:J200"),
+    roster:()=>A.sheet(CONFIG.SHEETS.roster,"'Frați activi'!A4:K200"),
     presence:()=>A.sheet(CONFIG.SHEETS.presence,"'Registru prezență'!A5:AZ200"),
     visits:()=>A.sheet(CONFIG.SHEETS.visits,"'Vizite'!A5:E1000"),
     plates:()=>A.sheet(CONFIG.SHEETS.plates,"'Planșe'!A5:J1000"),
@@ -373,11 +373,11 @@ function build(){
   // frați
   M.bros=(S.data.roster||[]).filter(r=>/^\d+$/.test(String(r[0]||"").trim())&&r[1]).map(r=>({
     nume:String(r[1]).trim(),prenume:String(r[2]||"").trim(),birth:parseDMY(r[3]),grad:r[4]||"",functie:r[5]||"",demnitar:r[6]||"",
-    profesie:r[7]||"",tel:r[8]||"",email:String(r[9]||"").trim().toLowerCase(),key:keyOf(r[1],r[2])}));
+    profesie:r[7]||"",tel:r[8]||"",email:String(r[9]||"").trim().toLowerCase(),gacc:String(r[10]||"").trim().toLowerCase(),key:keyOf(r[1],r[2])}));
   const byKey=new Map(M.bros.map(b=>[b.key,b]));
   // eu
   if(S.me.previewName)M.me=byKey.get(keyFromFull(S.me.previewName))||null;
-  else M.me=M.bros.find(b=>b.email&&b.email===String(S.me.email||"").toLowerCase())||null;
+  else{const em=String(S.me.email||"").toLowerCase();M.me=M.bros.find(b=>b.gacc&&b.gacc===em)||M.bros.find(b=>b.email&&b.email===em)||null}
   // prezență
   const pv=S.data.presence||[];const head=pv[0]||[];
   M.dates=[];head.forEach((h,i)=>{const d=parseDMY(h);if(d&&/^\d{2}\.\d{2}\.\d{2,4}$/.test(String(h).trim()))M.dates.push({d,col:i})});
@@ -692,7 +692,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-5";
+const APP_VERSION="2026.10.17-6";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
