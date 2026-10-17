@@ -203,6 +203,7 @@ a.chipbtn{text-decoration:none}
 /* ============ CONFIGURARE ============ */
 const CONFIG = {
   CLIENT_ID: "1081751748144-ch9rep5dusskif6jbh6galtkov55h8i6.apps.googleusercontent.com",
+  SERVICE_URL: "https://script.google.com/macros/s/AKfycbw1EbR_jeZuAgMdUSVHuVkZIYLAGPeQ05FnrAlEPmhtQ1gHGvBEiD99LcEZLrHNL0Pf/exec",
   CALENDAR_ID: "loja.transilvania@gmail.com",
   SHEETS: {
     roster:   "1irr1R_LVlaHtj9NJ5ONQw0xzfcFAgB6JxD5AXTih7ys",
@@ -288,6 +289,24 @@ function googleAdapter(token){
   };
 }
 
+function serverAdapter(token){
+  async function call(action,extra){
+    let r;
+    try{r=await fetch(CONFIG.SERVICE_URL,{method:"POST",body:JSON.stringify(Object.assign({token,action},extra||{}))})}
+    catch(e){throw new ApiError(0,"network")}
+    let j;try{j=await r.json()}catch(_){throw new ApiError(r.status||500,"bad_response")}
+    if(j&&j.error){const st=j.error==="unauthorized"?401:(j.error==="not_member"||j.error==="forbidden")?403:500;const e=new ApiError(st,j.error);e.email=j.email;throw e}
+    return j;
+  }
+  const pl=jwtPayload(token)||{};
+  return {
+    mode:"google",
+    async me(){return {email:String(pl.email||"").toLowerCase(),name:pl.given_name||""}},
+    bootstrap(){return call("bootstrap")},
+    async file(id){const j=await call("file",{id});const bin=atob(j.b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:j.mime||"application/octet-stream"})}
+  };
+}
+
 function mcpAdapter(mcp){
   const call=async(server,tool,input)=>{const r=await mcp.callTool(server,tool,input,{cache:{staleTime:60000}});let p=r.payload;if(typeof p==="string"){try{p=JSON.parse(p)}catch(_){}}return p||{}};
   const pad=n=>String(n).padStart(2,"0");
@@ -324,14 +343,18 @@ function evMap(e){
 
 /* ============ AUTENTIFICARE (Google) ============ */
 const AUTH_KEY="l216.auth", HINT_KEY="l216.hint", STATE_KEY="l216.state";
-const SCOPES=["openid","email","profile","https://www.googleapis.com/auth/drive.readonly","https://www.googleapis.com/auth/calendar.readonly"].join(" ");
+const SCOPES="openid email";
+const NONCE_KEY="l216.nonce";
+function jwtPayload(t){try{const b=t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");return JSON.parse(decodeURIComponent(escape(atob(b+"===".slice((b.length+3)%4)))))}catch(_){return null}}
 const store={get(k){try{return localStorage.getItem(k)}catch(_){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(_){}},del(k){try{localStorage.removeItem(k)}catch(_){}}};
 function savedToken(){try{const a=JSON.parse(store.get(AUTH_KEY)||"null");if(a&&a.exp>Date.now()+60000)return a.token}catch(_){}return null}
 function redirectUri(){return location.origin+location.pathname}
 function startLogin(silent){
   const state=Math.random().toString(36).slice(2);
   try{sessionStorage.setItem(STATE_KEY,state)}catch(_){}
-  const p=new URLSearchParams({client_id:CONFIG.CLIENT_ID,redirect_uri:redirectUri(),response_type:"token",scope:SCOPES,include_granted_scopes:"true",state});
+  const nonce=Math.random().toString(36).slice(2)+Date.now().toString(36);
+  try{sessionStorage.setItem(NONCE_KEY,nonce)}catch(_){}
+  const p=new URLSearchParams({client_id:CONFIG.CLIENT_ID,redirect_uri:redirectUri(),response_type:"id_token",scope:SCOPES,state,nonce});
   const hint=store.get(HINT_KEY);
   if(silent&&hint){p.set("prompt","none");p.set("login_hint",hint)}else{p.set("prompt","select_account")}
   location.href="https://accounts.google.com/o/oauth2/v2/auth?"+p.toString();
@@ -339,12 +362,15 @@ function startLogin(silent){
 function consumeRedirect(){
   if(!location.hash||location.hash.length<2)return null;
   const h=new URLSearchParams(location.hash.slice(1));
-  if(!h.get("access_token")&&!h.get("error"))return null;
+  if(!h.get("id_token")&&!h.get("error"))return null;
   history.replaceState(null,"",location.pathname+location.search);
   let expected=null;try{expected=sessionStorage.getItem(STATE_KEY)}catch(_){}
   if(h.get("error"))return {error:h.get("error")};
   if(expected&&h.get("state")!==expected)return {error:"state_mismatch"};
-  const token=h.get("access_token"),exp=Date.now()+(+h.get("expires_in")||3600)*1000;
+  const token=h.get("id_token"),pl=jwtPayload(token)||{};
+  let nonce=null;try{nonce=sessionStorage.getItem(NONCE_KEY)}catch(_){}
+  if(nonce&&pl.nonce&&pl.nonce!==nonce)return {error:"nonce_mismatch"};
+  const exp=(pl.exp?pl.exp*1000:Date.now()+3600e3);
   store.set(AUTH_KEY,JSON.stringify({token,exp}));
   return {token};
 }
@@ -380,6 +406,20 @@ const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situa�
 /* ============ ÎNCĂRCARE ============ */
 async function loadAll(){
   const A=S.api,t0=today(),to=new Date(t0);to.setDate(to.getDate()+60);
+  if(A.bootstrap){
+    try{
+      const d=await A.bootstrap();
+      ["roster","presence","visits","plates","lodges","news","tinuteTop","tinuteFiles","minutul","libTop","libFiles"].forEach(k=>S.data[k]=d[k]||[]);
+      S.data.events=(d.events||[]).map(evMap);
+      if(d.errors&&d.errors.events)S.err.events={status:500};
+      if(!CONFIG.SHOW_NEWS)S.data.news=[];
+      if(d.me)S.me.key=d.me.key;
+    }catch(e){
+      if(e.status===401){store.del(AUTH_KEY);startLogin(true);return}
+      S.err.roster=e;
+    }
+    S.loading=false;build();return;
+  }
   const jobs={
     roster:()=>A.sheet(CONFIG.SHEETS.roster,"'Frați activi'!A4:L200"),
     presence:()=>A.sheet(CONFIG.SHEETS.presence,"'Registru prezență'!A5:AZ200"),
@@ -415,7 +455,8 @@ function build(){
     profesie:r[7]||"",tel:r[8]||"",email:String(r[9]||"").trim().toLowerCase(),gacc:String(r[10]||"").trim().toLowerCase(),apel:String(r[11]||"").trim()||String(r[2]||"").trim().split(/\s+/)[0],key:keyOf(r[1],r[2])}));
   const byKey=new Map(M.bros.map(b=>[b.key,b]));
   // eu
-  if(S.me.previewName)M.me=byKey.get(keyFromFull(S.me.previewName))||null;
+  if(S.me.key)M.me=byKey.get(S.me.key)||null;
+  else if(S.me.previewName)M.me=byKey.get(keyFromFull(S.me.previewName))||null;
   else{const em=String(S.me.email||"").toLowerCase();M.me=M.bros.find(b=>b.gacc&&b.gacc===em)||M.bros.find(b=>b.email&&b.email===em)||null}
   // prezență
   const pv=S.data.presence||[];const head=pv[0]||[];
@@ -508,7 +549,7 @@ function render(){
 
 function accessDenied(){
   const st=S.err.roster&&S.err.roster.status;
-  if(st===403||st===404)return `<div class="state err"><strong>Contul ${esc(S.me.email||"")} nu are acces.</strong><br>Dacă ești membru, transmite Secretariatului adresa acestui cont.<br><br><button class="gbtn" type="button" onclick="logout()">Schimbă contul</button></div>`;
+  if(st===403||st===404)return `<div class="state err"><strong>Contul ${esc((S.err.roster&&S.err.roster.email)||S.me.email||"")} nu are acces.</strong><br>Dacă ești membru, transmite Secretariatului adresa acestui cont.<br><br><button class="gbtn" type="button" onclick="logout()">Schimbă contul</button></div>`;
   return `<div class="state err"><strong>Nu am putut încărca datele lojii.</strong><br>${esc(errText(S.err.roster))}<br><br><button class="gbtn" type="button" onclick="location.reload()">Încearcă din nou</button></div>`;
 }
 function errText(e){
@@ -754,7 +795,8 @@ async function boot(){
     if(!r&&store.get(HINT_KEY)){startLogin(true);return}
     loginScreen(r&&r.error==="access_denied"?"Autentificarea a fost anulată.":"");return;
   }
-  S.api=googleAdapter(token);
+  if(!CONFIG.SERVICE_URL){$("#app").innerHTML=`<div class="wrap" style="padding-block:40px"><div class="state err">Serviciul nu este încă configurat.</div></div>`;return}
+  S.api=serverAdapter(token);
   try{S.me=await S.api.me();store.set(HINT_KEY,S.me.email||"")}
   catch(e){if(e.status===401){store.del(AUTH_KEY);startLogin(true);return}loginScreen("Nu am putut verifica contul. Încearcă din nou.");return}
   render();loadAll();
@@ -762,7 +804,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-16";
+const APP_VERSION="2026.10.17-20";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
