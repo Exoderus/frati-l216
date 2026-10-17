@@ -63,7 +63,7 @@ function rosterRows_() {
   return SpreadsheetApp.openById(CFG.SHEETS.roster).getSheetByName("Frați activi").getRange("A4:M200").getDisplayValues()
     .filter(r => /^\d+$/.test(String(r[0]).trim()) && r[1]);
 }
-const norm_ = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+const norm_ = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 const key_ = (n, p) => norm_(n) + "|" + norm_(String(p || "").split(/\s+/)[0]);
 
 function member_(email) {
