@@ -205,6 +205,7 @@ const CONFIG = {
     minutul: "1GGwFADloHeiV3jAc2EZANc_p-9f3jEHs",
     library: "1hn9fZq0MKpgHwunFmZnwe3dYaSvH_uND"
   },
+  SHOW_NEWS: false,        // secțiunea „Noutăți” pe Acasă
   SHOW_TRUNCHI: false,     // situația personală la Trunchiul văduvei
   SHOW_CONTACTS: true,     // telefon și e-mail în lista fraților
   MEETING_TIME: "19:00",
@@ -368,7 +369,7 @@ async function loadAll(){
     plates:()=>A.sheet(CONFIG.SHEETS.plates,"'Planșe'!A5:J1000"),
     trunchi:()=>CONFIG.SHOW_TRUNCHI?A.sheet(CONFIG.SHEETS.trunchi,"'Situatie'!A3:J200"):Promise.resolve(null),
     events:()=>A.events(CONFIG.CALENDAR_ID,t0,to),
-    news:()=>A.sheet(CONFIG.SHEETS.news,"A2:E300"),
+    news:()=>CONFIG.SHOW_NEWS?A.sheet(CONFIG.SHEETS.news,"A2:E300"):Promise.resolve([]),
     tinuteTop:()=>A.children([CONFIG.FOLDERS.tinute]),
     minutul:()=>A.children([CONFIG.FOLDERS.minutul]),
     libTop:()=>A.children([CONFIG.FOLDERS.library])
@@ -718,7 +719,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.17-10";
+const APP_VERSION="2026.10.17-11";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
