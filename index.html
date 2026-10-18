@@ -888,8 +888,8 @@ function openEvent(ev){
   <div class="fbody"><div style="max-width:560px;margin:0 auto;padding:0 16px">
     <div class="evhead"><div class="label">${esc(when)}</div><h3>${esc(ev.title)}</h3>${ev.location?`<div class="s" style="color:var(--muted)">${esc(ev.location)}</div><div class="lnav" style="margin-top:8px"><a class="navbtn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}" target="_blank" rel="noopener">${svg("pin",14)}Google Maps</a><a class="navbtn" href="https://waze.com/ul?q=${encodeURIComponent(ev.location)}&navigate=yes" target="_blank" rel="noopener">${svg("pin",14)}Waze</a></div>`:""}</div>
     ${evText(ev.description)?`<div class="sec-title">Detalii</div><div class="card"><p class="exprog">${linkify(evText(ev.description))}</p></div>`:""}
-    <div class="sec-title">Cine merge</div>
-    <div class="card" id="evwho">${ps.length?`<ul class="list">${ps.map(p=>`<li class="item plan" style="grid-template-columns:1fr"><div class="who" style="margin:0"><span>Fr∴ ${esc(broName(p.key,p.name))}${p.mine?` <span class="small muted">(tu)</span>`:""}</span>${p.escort?`<span class="tag">caută Maestru</span>`:""}${/are locuri/i.test(p.car)?`<span class="tag">are locuri în mașină</span>`:""}${/caută loc/i.test(p.car)?`<span class="tag">caută loc în mașină</span>`:""}${/confirmat/i.test(p.stare)?`<span class="tag ok">confirmată</span>`:""}${p.mine&&canPlan()?`<button class="navbtn ghost" type="button" data-plan-cancel="${esc(p.id)}">Anulează</button>`:""}</div>${p.note?`<div class="small muted">„${esc(p.note)}”</div>`:""}${p.nota?`<div class="nota">Secretariat: ${esc(p.nota)}</div>`:""}</li>`).join("")}</ul>`:`<p class="muted" style="margin:0">Încă nu s-a anunțat niciun frate.</p>`}</div>
+    <div class="sec-title">Cine merge${ps.length?` · ${ps.length} ${ps.length===1?"frate":"frați"}${ps.reduce((a,p)=>a+exPers(p),0)>ps.length?`, ${ps.reduce((a,p)=>a+exPers(p),0)} persoane`:""}`:""}</div>
+    <div class="card" id="evwho">${ps.length?`<ul class="list">${ps.map(p=>`<li class="item plan" style="grid-template-columns:1fr"><div class="who" style="margin:0"><span>Fr∴ ${esc(broName(p.key,p.name))}${p.mine?` <span class="small muted">(tu)</span>`:""}</span>${exPers(p)>1?`<span class="tag">${exPers(p)} persoane</span>`:""}${p.escort?`<span class="tag">caută Maestru</span>`:""}${/are locuri/i.test(p.car)?`<span class="tag">are locuri în mașină</span>`:""}${/caută loc/i.test(p.car)?`<span class="tag">caută loc în mașină</span>`:""}${/confirmat/i.test(p.stare)?`<span class="tag ok">confirmată</span>`:""}${p.mine&&canPlan()?`<button class="navbtn ghost" type="button" data-plan-cancel="${esc(p.id)}">Anulează</button>`:""}</div>${p.note?`<div class="small muted">„${esc(p.note)}”</div>`:""}${p.nota?`<div class="nota">Secretariat: ${esc(p.nota)}</div>`:""}</li>`).join("")}</ul>`:`<p class="muted" style="margin:0">Încă nu s-a anunțat niciun frate.</p>`}</div>
     ${canPlan()&&!mine?`<button class="primary" type="button" id="ejoin">Merg și eu</button>`:""}
     <p class="hint" style="margin-top:14px;color:var(--muted);font-size:13px">Toți frații lojii văd cine merge. Secretarul se ocupă de înscriere și de legătura cu organizatorii.</p>
   </div></div>`;
@@ -987,6 +987,9 @@ function openPlanForm({l=-1,date="",ev=null}={}){
     <div class="hint" id="ptin"></div>`}
     <label class="f" for="pd">${ev?"Ziua la care mergi":"Data ținutei"}</label>
     <input type="date" id="pd" min="${min}"${max?` max="${max}"`:""} value="${esc(date)}" required>
+    ${ev?`<label class="f" id="ppl">Câte persoane, cu tine</label>
+    <div class="pers" role="radiogroup" aria-labelledby="ppl">${[1,2,3,4].map(n=>`<label><input type="radio" name="pp" value="${n}"${n===1?" checked":""}>${n===1?"Doar eu":n}</label>`).join("")}</div>
+    <div class="hint">De exemplu 2 dacă vii însoțit.</div>`:""}
     ${uc?`<label class="check"><input type="checkbox" id="pe" checked><span>Caut un Maestru care să mă însoțească<br><span class="small muted">Ucenicii și Calfele merg în vizită doar însoțiți de un Maestru.</span></span></label>`:""}
     <label class="f" id="pcl">Mașina</label>
     <div class="radios" role="radiogroup" aria-labelledby="pcl"><label><input type="radio" name="pc" value="" checked>Nu e cazul</label><label><input type="radio" name="pc" value="ofer">Am locuri libere</label><label><input type="radio" name="pc" value="caut">Caut loc</label></div>
@@ -1011,7 +1014,7 @@ function openPlanForm({l=-1,date="",ev=null}={}){
     btn.disabled=true;btn.textContent="Se trimite…";
     try{
       const pe=el.querySelector("#pe");
-      const r=await S.api.planAdd({...(ev?{ev:ev.id}:{loja:x.nume,nr:x.nr}),date:d,escort:!!(pe&&pe.checked),car:(el.querySelector('input[name="pc"]:checked')||{}).value||"",note:el.querySelector("#pn").value});
+      const r=await S.api.planAdd({...(ev?{ev:ev.id}:{loja:x.nume,nr:x.nr}),date:d,escort:!!(pe&&pe.checked),persons:+((el.querySelector('input[name="pp"]:checked')||{}).value||1),car:(el.querySelector('input[name="pc"]:checked')||{}).value||"",note:el.querySelector("#pn").value});
       S.data.plans=r.plans||[];close();if(!ev){S.tab="bros";S.bview="calatorii"}build();if(ev){const e2=M.events.find(x=>x.id===ev.id);if(e2)openEvent(e2)}else window.scrollTo(0,0);
     }catch(e){btn.disabled=false;btn.textContent=ev?"Merg":"Anunță vizita";err.textContent=e.detail||(e.status===401?"Sesiunea a expirat. Reîncarcă pagina.":"Nu s-a putut trimite. Verifică conexiunea și încearcă din nou.")}
   };
@@ -1119,7 +1122,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-21";
+const APP_VERSION="2026.10.18-22";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}

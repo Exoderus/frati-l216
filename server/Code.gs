@@ -284,6 +284,7 @@ function planAdd_(me, email, req) {
       const s1 = parseDate_(E.end.date) || s0;
       if (d < s0 || d > s1) return { error: "bad_request", message: "Data nu este în perioada evenimentului." };
       lojaTxt = clean_(E.summary, 150); orient = clean_(E.location, 100); evt = E.id;
+      persons = String(Math.max(1, Math.min(6, parseInt(req.persons, 10) || 1)));
     } else {
       const lodges = values_(CFG.SHEETS.lodges, "A2:C100");
       const L = lodges.find(l => norm_(l[0]) === norm_(req.loja) && String(l[1]).trim() === String(req.nr || "").trim());
