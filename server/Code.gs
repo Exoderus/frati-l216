@@ -32,6 +32,7 @@ function doPost(e) {
     const who = verify_(req.token);
     if (who.error) return json_(who);
     const me = member_(who.email);
+    if (req.action === "bootstrap") logAccess_(who.email, me);
     if (!me) return json_({ error: "not_member", email: who.email });
     if (req.action === "bootstrap") return json_(bootstrap_(me, who.email));
     if (req.action === "file") return json_(file_(String(req.id || "")));
@@ -61,6 +62,7 @@ function verify_(token) {
 
 function rosterRows_() {
   return SpreadsheetApp.openById(CFG.SHEETS.roster).getSheetByName("Frați activi").getRange("A4:M200").getDisplayValues()
+    .map((r, i) => { r.row = i + 4; return r; })
     .filter(r => /^\d+$/.test(String(r[0]).trim()) && r[1]);
 }
 const norm_ = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -70,7 +72,35 @@ function member_(email) {
   const rows = rosterRows_();
   const r = rows.find(x => String(x[10]).trim().toLowerCase() === email) || rows.find(x => String(x[9]).trim().toLowerCase() === email);
   if (!r || norm_(r[12]) !== "activ") return null;
-  return { key: key_(r[1], r[2]) };
+  return { key: key_(r[1], r[2]), row: r.row, name: r[2] + " " + r[1] };
+}
+
+/* ---------- jurnal de acces ---------- */
+// Coloanele N (Ultima accesare) și O (Accesări) din „Frați activi”, plus foaia „Jurnal acces”.
+function logAccess_(email, me) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(3000)) return;
+  try {
+    const ss = SpreadsheetApp.openById(CFG.SHEETS.roster);
+    const now = Utilities.formatDate(new Date(), "Europe/Bucharest", "dd.MM.yyyy HH:mm");
+    if (me) {
+      const sh = ss.getSheetByName("Frați activi");
+      const cnt = Number(sh.getRange(me.row, 15).getValue()) || 0;
+      sh.getRange(me.row, 14, 1, 2).setValues([[now, cnt + 1]]);
+    }
+    let log = ss.getSheetByName("Jurnal acces");
+    if (!log) {
+      log = ss.insertSheet("Jurnal acces");
+      log.getRange(1, 1, 1, 4).setValues([["Data și ora", "Cont Google", "Frate", "Rezultat"]]).setFontWeight("bold");
+      log.setFrozenRows(1);
+    }
+    log.insertRowAfter(1);
+    log.getRange(2, 1, 1, 4).setValues([[now, email, me ? me.name : "—", me ? "Intrat" : "Fără acces"]]);
+  } catch (e) {
+    // jurnalul nu blochează niciodată accesul
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /* ---------- date ---------- */
