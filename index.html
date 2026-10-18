@@ -177,6 +177,9 @@ a.chipbtn{text-decoration:none}
 
 /* Vizite anunțate */
 button.navbtn{cursor:pointer;font-family:inherit}
+.evgo{cursor:pointer}.evgo:focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-radius:8px}
+.evn{margin-top:6px}
+.evhead{padding:4px 0 8px}.evhead h3{font-family:var(--f-display);font-size:30px;line-height:1.1;margin:6px 0 8px;text-wrap:balance}
 .navbtn.ghost{background:transparent;color:var(--muted)}
 .list .item.plan{align-items:start}
 .plan .who{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:14px}
@@ -375,7 +378,9 @@ function evMap(e){
   let start;
   if(allDay){const s=String(e.start.date).slice(0,10).split("-");start=new Date(+s[0],+s[1]-1,+s[2])}
   else start=new Date(e.start.dateTime);
-  return {title:e.summary||"(fără titlu)",start,allDay,location:e.location||"",description:e.description||""};
+  let endDay=null;if(e.end&&e.end.date){const x=String(e.end.date).slice(0,10).split("-");endDay=new Date(+x[0],+x[1]-1,+x[2])}
+  const d0=new Date(start);d0.setHours(0,0,0,0);
+  return {id:e.id||"",title:e.summary||"(fără titlu)",start,allDay,location:e.location||"",description:e.description||"",day:d0,endDay:endDay&&endDay>=d0?endDay:d0};
 }
 
 /* ============ AUTENTIFICARE (Google) ============ */
@@ -653,7 +658,7 @@ function vHome(v){
   h+=`<div class="sec-title">În agenda lojii</div>`;
   if(S.err.events)h+=sectionErr("events","Calendarul lojii");
   else if(!M.events.length)h+=`<div class="state">Niciun eveniment în următoarele 60 de zile.</div>`;
-  else h+=`<div class="card"><ul class="list">${M.events.slice(0,8).map(e=>`<li class="item"><div class="datebox"><b>${e.start.getDate()}</b><span>${RO_MONTHS[e.start.getMonth()].slice(0,3)}</span></div><div><div class="t">${esc(e.title)}</div><div class="s">${e.allDay?"":esc(e.start.toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"}))+" · "}${esc(e.location)}</div></div><span></span></li>`).join("")}</ul></div>`;
+  else h+=`<div class="card"><ul class="list">${M.events.slice(0,8).map(e=>{const n=e.id?M.plans.filter(p=>p.evt===e.id).length:0;const go=!!e.id;return `<li class="item${go?" evgo":""}"${go?` role="button" tabindex="0" data-evopen="${esc(e.id)}"`:""}><div class="datebox"><b>${e.start.getDate()}</b><span>${RO_MONTHS[e.start.getMonth()].slice(0,3)}</span></div><div><div class="t">${esc(e.title)}</div><div class="s">${e.allDay?"":esc(e.start.toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"}))+" · "}${esc(e.location)}</div>${n?`<div class="evn"><span class="tag">${n===1?"merge un frate":n+(n>=20?" de":"")+" frați merg"}</span></div>`:""}</div><span class="chev">${go?svg("chev",18):""}</span></li>`}).join("")}</ul></div>`;
   // aniversări
   if(M.bdays.length){
     h+=`<div class="sec-title">Aniversări în următoarele două săptămâni</div><div class="card"><ul class="list">${M.bdays.map(x=>`<li class="item"><div class="datebox"><b>${x.n.getDate()}</b><span>${RO_MONTHS[x.n.getMonth()].slice(0,3)}</span></div><div><div class="t">Fr∴ ${esc(x.b.apel+" "+x.b.nume)}</div><div class="s">${sameDay(x.n,today())?"Astăzi":esc(cap(x.n.toLocaleDateString("ro-RO",{weekday:"long"})))}</div></div><span></span></li>`).join("")}</ul></div>`;
@@ -815,13 +820,14 @@ const lodgeLabel=l=>l.nume+(l.nr?" nr. "+l.nr:"");
 const isoDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 function vPlans(limit){
   const g=new Map();
-  M.plans.forEach(p=>{const id=p.date+"|"+normRo(p.loja);if(!g.has(id))g.set(id,{d:p.d,date:p.date,loja:p.loja,orient:p.orient,items:[]});g.get(id).items.push(p)});
+  M.plans.forEach(p=>{const id=p.date+"|"+(p.evt||normRo(p.loja));if(!g.has(id))g.set(id,{d:p.d,date:p.date,loja:p.loja,orient:p.orient,evt:p.evt||"",items:[]});g.get(id).items.push(p)});
   let G=[...g.values()];
   const more=limit&&G.length>limit;if(limit)G=G.slice(0,limit);
   const me=M.me&&M.me.key;
   if(!G.length)return `<div class="state">Nicio vizită anunțată deocamdată. Anunță-ți vizita și vezi cine mai merge.</div>${canPlan()?`<button class="cta" type="button" data-plan-new>${svg("tinute",18)}Anunță o vizită</button>`:""}`;
   const li=G.map(e=>{
-    const L=M.lodges.findIndex(l=>normRo(lodgeLabel(l))===normRo(e.loja));
+    const L=e.evt?-1:M.lodges.findIndex(l=>normRo(lodgeLabel(l))===normRo(e.loja));
+    const EV=e.evt?M.events.find(x=>x.id===e.evt):null;
     const amIn=e.items.some(p=>p.mine);
     const days=Math.round((e.d-today())/864e5);
     const when=days===0?"astăzi":days===1?"mâine":cap(e.d.toLocaleDateString("ro-RO",{weekday:"long"}));
@@ -829,12 +835,14 @@ function vPlans(limit){
       const tags=[p.escort?`<span class="tag">caută Maestru</span>`:"",/are locuri/i.test(p.car)?`<span class="tag">are locuri în mașină</span>`:"",/caută loc/i.test(p.car)?`<span class="tag">caută loc în mașină</span>`:"",/confirmat/i.test(p.stare)?`<span class="tag ok">confirmată</span>`:""].join("");
       return `<div class="who"><span>Fr∴ ${esc(broName(p.key,p.name))}${p.key===me||p.mine?` <span class="small muted">(tu)</span>`:""}</span>${tags}${p.mine&&canPlan()?`<button class="navbtn ghost" type="button" data-plan-cancel="${esc(p.id)}">Anulează</button>`:""}</div>${p.note?`<div class="small muted" style="margin-left:2px">„${esc(p.note)}”</div>`:""}${p.nota?`<div class="nota">Secretariat: ${esc(p.nota)}</div>`:""}`;
     }).join("");
-    return `<li class="item plan" style="grid-template-columns:auto minmax(0,1fr)"><div class="datebox"><b>${e.d.getDate()}</b><span>${RO_MONTHS[e.d.getMonth()].slice(0,3)}</span></div><div><div class="t">R∴L∴ ${esc(e.loja)}</div><div class="s">${e.orient?`Or∴ ${esc(e.orient)} · `:""}${esc(when)}</div>${who}${!amIn&&canPlan()&&L>=0?`<div class="acts2"><button class="navbtn" type="button" data-plan-new data-l="${L}" data-d="${esc(e.date)}">Merg și eu</button></div>`:""}</div></li>`;
+    return `<li class="item plan" style="grid-template-columns:auto minmax(0,1fr)"><div class="datebox"><b>${e.d.getDate()}</b><span>${RO_MONTHS[e.d.getMonth()].slice(0,3)}</span></div><div><div class="t">${e.evt?"":"R∴L∴ "}${esc(e.loja)}</div><div class="s">${e.orient?`${e.evt?"":"Or∴ "}${esc(e.orient)} · `:""}${esc(when)}</div>${who}${!amIn&&canPlan()&&L>=0?`<div class="acts2"><button class="navbtn" type="button" data-plan-new data-l="${L}" data-d="${esc(e.date)}">Merg și eu</button></div>`:""}${!amIn&&canPlan()&&EV?`<div class="acts2"><button class="navbtn" type="button" data-plan-ev="${esc(EV.id)}" data-d="${esc(e.date)}">Merg și eu</button></div>`:""}</div></li>`;
   }).join("");
   return `<div class="card"><ul class="list">${li}</ul></div>${more?`<button class="cta" type="button" data-go-plans>Toate vizitele anunțate</button>`:canPlan()?`<button class="cta" type="button" data-plan-new>${svg("tinute",18)}Anunță o vizită</button>`:""}`;
 }
 function bindPlans(root){
   root.querySelectorAll("[data-plan-new]").forEach(b=>b.onclick=()=>openPlanForm({l:b.dataset.l!==undefined?+b.dataset.l:-1,date:b.dataset.d||""}));
+  root.querySelectorAll("[data-plan-ev]").forEach(b=>b.onclick=()=>{const ev=M.events.find(x=>x.id===b.dataset.planEv);if(ev)openPlanForm({ev,date:b.dataset.d||""})});
+  root.querySelectorAll("[data-evopen]").forEach(li=>{const go=()=>{const ev=M.events.find(x=>x.id===li.dataset.evopen);if(ev)openEvent(ev)};li.onclick=go;li.onkeydown=k=>{if(k.key==="Enter"||k.key===" "){k.preventDefault();go()}}});
   root.querySelectorAll("[data-go-plans]").forEach(b=>b.onclick=()=>{S.tab="bros";S.bview="calatorii";render();window.scrollTo(0,0)});
   root.querySelectorAll("[data-plan-cancel]").forEach(b=>b.onclick=async()=>{
     if(!confirm("Anulezi această vizită anunțată?"))return;
@@ -843,46 +851,74 @@ function bindPlans(root){
     catch(e){b.disabled=false;b.textContent="Anulează";alert(e.detail||"Nu s-a putut anula. Încearcă din nou.")}
   });
 }
-function openPlanForm({l=-1,date=""}={}){
+function openEvent(ev){
+  const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label",ev.title);
+  const ps=M.plans.filter(p=>p.evt===ev.id);
+  const mine=ps.find(p=>p.mine);
+  const multi=ev.endDay&&ev.endDay>ev.day;
+  const when=multi?`${fmtDM(ev.day)} – ${fmtDM(ev.endDay)}`:cap(fmtLong(ev.start))+(ev.allDay?"":", "+ev.start.toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"}));
+  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="eclose">Închide</button><h2>Eveniment</h2></div></header>
+  <div class="fbody"><div style="max-width:560px;margin:0 auto;padding:0 16px">
+    <div class="evhead"><div class="label">${esc(when)}</div><h3>${esc(ev.title)}</h3>${ev.location?`<div class="s" style="color:var(--muted)">${esc(ev.location)}</div><div class="lnav" style="margin-top:8px"><a class="navbtn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}" target="_blank" rel="noopener">${svg("pin",14)}Google Maps</a><a class="navbtn" href="https://waze.com/ul?q=${encodeURIComponent(ev.location)}&navigate=yes" target="_blank" rel="noopener">${svg("pin",14)}Waze</a></div>`:""}</div>
+    <div class="sec-title">Cine merge</div>
+    <div class="card" id="evwho">${ps.length?`<ul class="list">${ps.map(p=>`<li class="item plan" style="grid-template-columns:1fr"><div class="who" style="margin:0"><span>Fr∴ ${esc(broName(p.key,p.name))}${p.mine?` <span class="small muted">(tu)</span>`:""}</span>${p.escort?`<span class="tag">caută Maestru</span>`:""}${/are locuri/i.test(p.car)?`<span class="tag">are locuri în mașină</span>`:""}${/caută loc/i.test(p.car)?`<span class="tag">caută loc în mașină</span>`:""}${/confirmat/i.test(p.stare)?`<span class="tag ok">confirmată</span>`:""}${p.mine&&canPlan()?`<button class="navbtn ghost" type="button" data-plan-cancel="${esc(p.id)}">Anulează</button>`:""}</div>${p.note?`<div class="small muted">„${esc(p.note)}”</div>`:""}${p.nota?`<div class="nota">Secretariat: ${esc(p.nota)}</div>`:""}</li>`).join("")}</ul>`:`<p class="muted" style="margin:0">Încă nu s-a anunțat niciun frate.</p>`}</div>
+    ${canPlan()&&!mine?`<button class="primary" type="button" id="ejoin">Merg și eu</button>`:""}
+    <p class="hint" style="margin-top:14px;color:var(--muted);font-size:13px">Toți frații lojii văd cine merge. Secretarul se ocupă de înscriere și de legătura cu organizatorii.</p>
+  </div></div>`;
+  document.body.append(el);document.body.style.overflow="hidden";
+  const close=()=>{el.remove();document.body.style.overflow="";document.removeEventListener("keydown",onKey)};
+  const onKey=k=>{if(k.key==="Escape")close()};document.addEventListener("keydown",onKey);
+  el.querySelector("#eclose").onclick=close;
+  const j=el.querySelector("#ejoin");if(j)j.onclick=()=>{close();openPlanForm({ev})};
+  el.querySelectorAll("[data-plan-cancel]").forEach(b=>b.onclick=async()=>{
+    if(!confirm("Anulezi această vizită anunțată?"))return;
+    b.disabled=true;b.textContent="Se anulează…";
+    try{const r=await S.api.planCancel(b.dataset.planCancel);S.data.plans=r.plans||[];close();build()}
+    catch(e){b.disabled=false;b.textContent="Anulează";alert(e.detail||"Nu s-a putut anula. Încearcă din nou.")}
+  });
+}
+function openPlanForm({l=-1,date="",ev=null}={}){
   const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label","Anunță o vizită");
   const uc=M.me&&/ucenic|calf/i.test(M.me.grad||"");
   const orients=[...new Set(M.lodges.map(x=>x.orient||"Cluj"))].sort((a,b)=>(a==="Cluj"?-1:b==="Cluj"?1:a.localeCompare(b,"ro")));
   const opts=orients.map(o=>`<optgroup label="Orientul ${esc(o)}">${M.lodges.map((x,i)=>[x,i]).filter(([x])=>(x.orient||"Cluj")===o).map(([x,i])=>`<option value="${i}"${i===l?" selected":""}>${esc(lodgeLabel(x))}</option>`).join("")}</optgroup>`).join("");
-  const min=isoDate(today());
-  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="pclose">Închide</button><h2>Anunță o vizită</h2></div></header>
+  const min=ev?isoDate(ev.day>today()?ev.day:today()):isoDate(today());
+  const max=ev?isoDate(ev.endDay||ev.day):"";
+  if(ev&&!date)date=min;
+  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="pclose">Închide</button><h2>${ev?"Merg și eu":"Anunță o vizită"}</h2></div></header>
   <div class="fbody"><form id="pform" novalidate>
-    <label class="f" for="pl">Loja pe care vrei să o vizitezi</label>
+    ${ev?`<label class="f">Evenimentul</label><div class="card" style="margin:0"><div class="t" style="font-weight:600">${esc(ev.title)}</div>${ev.location?`<div class="s" style="color:var(--muted);font-size:14px;margin-top:4px">${esc(ev.location)}</div>`:""}</div>`:`<label class="f" for="pl">Loja pe care vrei să o vizitezi</label>
     <select id="pl" required>${l<0?`<option value="" selected disabled>Alege loja</option>`:""}${opts}</select>
-    <div class="hint" id="ptin"></div>
-    <label class="f" for="pd">Data ținutei</label>
-    <input type="date" id="pd" min="${min}" value="${esc(date)}" required>
+    <div class="hint" id="ptin"></div>`}
+    <label class="f" for="pd">${ev?"Ziua la care mergi":"Data ținutei"}</label>
+    <input type="date" id="pd" min="${min}"${max?` max="${max}"`:""} value="${esc(date)}" required>
     ${uc?`<label class="check"><input type="checkbox" id="pe" checked><span>Caut un Maestru care să mă însoțească<br><span class="small muted">Ucenicii și Calfele merg în vizită doar însoțiți de un Maestru.</span></span></label>`:""}
     <label class="f" id="pcl">Mașina</label>
     <div class="radios" role="radiogroup" aria-labelledby="pcl"><label><input type="radio" name="pc" value="" checked>Nu e cazul</label><label><input type="radio" name="pc" value="ofer">Am locuri libere</label><label><input type="radio" name="pc" value="caut">Caut loc</label></div>
     <label class="f" for="pn">Mesaj pentru frați (opțional)</label>
     <textarea id="pn" maxlength="200" placeholder="Ex.: plec din Cluj la 17:00, am 2 locuri"></textarea>
-    <p class="hint" style="margin-top:14px">Toți frații lojii noastre văd cine merge. Secretarul ia legătura cu loja gazdă și confirmă vizita.</p>
+    <p class="hint" style="margin-top:14px">Toți frații lojii noastre văd cine merge. ${ev?"Secretarul se ocupă de înscriere și de legătura cu organizatorii.":"Secretarul ia legătura cu loja gazdă și confirmă vizita."}</p>
     <div class="ferr" id="perr" role="alert"></div>
-    <button class="primary" type="submit" id="psend">Anunță vizita</button>
+    <button class="primary" type="submit" id="psend">${ev?"Merg":"Anunță vizita"}</button>
   </form></div>`;
   document.body.append(el);document.body.style.overflow="hidden";
   const close=()=>{el.remove();document.body.style.overflow="";document.removeEventListener("keydown",onKey)};
   const onKey=e=>{if(e.key==="Escape")close()};document.addEventListener("keydown",onKey);
   el.querySelector("#pclose").onclick=close;
   const sel=el.querySelector("#pl"),tin=el.querySelector("#ptin");
-  const showTin=()=>{const x=M.lodges[+sel.value];tin.textContent=x&&x.tinute?"Ținute: "+x.tinute:""};sel.onchange=showTin;showTin();
-  el.querySelector("#pform").onsubmit=async ev=>{
-    ev.preventDefault();
+  if(sel){const showTin=()=>{const x=M.lodges[+sel.value];tin.textContent=x&&x.tinute?"Ținute: "+x.tinute:""};sel.onchange=showTin;showTin()}
+  el.querySelector("#pform").onsubmit=async sub=>{
+    sub.preventDefault();
     const err=el.querySelector("#perr"),btn=el.querySelector("#psend");err.textContent="";
-    const x=M.lodges[+sel.value];const d=el.querySelector("#pd").value;
-    if(sel.value===""||!x){err.textContent="Alege loja.";sel.focus();return}
-    if(!d||d<min){err.textContent="Alege data ținutei (de azi înainte).";el.querySelector("#pd").focus();return}
+    const x=sel?M.lodges[+sel.value]:null;const d=el.querySelector("#pd").value;
+    if(!ev&&(sel.value===""||!x)){err.textContent="Alege loja.";sel.focus();return}
+    if(!d||d<min||(max&&d>max)){err.textContent=ev?"Alege o zi din perioada evenimentului.":"Alege data ținutei (de azi înainte).";el.querySelector("#pd").focus();return}
     btn.disabled=true;btn.textContent="Se trimite…";
     try{
       const pe=el.querySelector("#pe");
-      const r=await S.api.planAdd({loja:x.nume,nr:x.nr,date:d,escort:!!(pe&&pe.checked),car:(el.querySelector('input[name="pc"]:checked')||{}).value||"",note:el.querySelector("#pn").value});
-      S.data.plans=r.plans||[];close();S.tab="bros";S.bview="calatorii";build();window.scrollTo(0,0);
-    }catch(e){btn.disabled=false;btn.textContent="Anunță vizita";err.textContent=e.detail||(e.status===401?"Sesiunea a expirat. Reîncarcă pagina.":"Nu s-a putut trimite. Verifică conexiunea și încearcă din nou.")}
+      const r=await S.api.planAdd({...(ev?{ev:ev.id}:{loja:x.nume,nr:x.nr}),date:d,escort:!!(pe&&pe.checked),car:(el.querySelector('input[name="pc"]:checked')||{}).value||"",note:el.querySelector("#pn").value});
+      S.data.plans=r.plans||[];close();if(!ev){S.tab="bros";S.bview="calatorii"}build();if(ev){const e2=M.events.find(x=>x.id===ev.id);if(e2)openEvent(e2)}else window.scrollTo(0,0);
+    }catch(e){btn.disabled=false;btn.textContent=ev?"Merg":"Anunță vizita";err.textContent=e.detail||(e.status===401?"Sesiunea a expirat. Reîncarcă pagina.":"Nu s-a putut trimite. Verifică conexiunea și încearcă din nou.")}
   };
 }
 function normRo(t){return String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
@@ -988,7 +1024,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-17";
+const APP_VERSION="2026.10.18-18";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
