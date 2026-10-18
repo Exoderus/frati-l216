@@ -747,7 +747,7 @@ function vCalatorii(){
   const me=M.me&&M.me.key;
   const rank=[...who.entries()].sort((a,b)=>b[1].length-a[1].length||broName(a[0],a[1][0].who).localeCompare(broName(b[0],b[1][0].who),"ro"));
   h+=`<div class="sec-title">Pe frați</div><div class="card"><ul class="list">${rank.map(([k,xs])=>{const unde=[...new Set(xs.map(x=>x.orient||x.loja).filter(Boolean))].join(", ");return `<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><div><div class="t">Fr∴ ${esc(broName(k,xs[0].who))}${k===me?` <span class="small muted">(tu)</span>`:""}</div><div class="s">${esc(unde)}</div></div><span class="cnt" aria-label="${xs.length} ${xs.length===1?"vizită":"vizite"}">${xs.length}</span></li>`}).join("")}</ul></div>`;
-  if(M.bros.length&&done<M.bros.length)h+=`<div class="small muted" style="margin:6px 4px 0">${(r=>r===1?"Un frate nu și-a făcut încă vizita anului.":`${r}${(r%100===0||r%100>=20)?" de":""} frați nu și-au făcut încă vizita anului.`)(M.bros.length-done)}</div>`;
+  if(M.bros.length&&done<M.bros.length)h+=`<div class="small muted" style="margin:6px 4px 0">${(r=>r===1?"Un frate nu și-a făcut vizita anuală.":`${r}${(r%100===0||r%100>=20)?" de":""} frați nu și-au făcut vizita anuală.`)(M.bros.length-done)}</div>`;
   const g=new Map();V.forEach(x=>{const id=(x.d?x.d.toDateString():"")+"|"+normRo(x.loja);if(!g.has(id))g.set(id,{d:x.d,loja:x.loja,orient:x.orient,names:[]});g.get(id).names.push(broName(x.key,x.who))});
   h+=`<div class="sec-title">Jurnalul călătoriilor</div><div class="card"><ul class="list">${[...g.values()].map(e=>`<li class="item" style="grid-template-columns:auto minmax(0,1fr)"><div class="datebox">${e.d?`<b>${e.d.getDate()}</b><span>${RO_MONTHS[e.d.getMonth()].slice(0,3)}</span>`:"<b>–</b>"}</div><div><div class="t">${esc(e.loja)}</div><div class="s">${e.orient?`Or∴ ${esc(e.orient)} · `:""}${esc(e.names.join(", "))}</div></div></li>`).join("")}</ul></div>`;
   return h;
@@ -855,7 +855,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-06";
+const APP_VERSION="2026.10.18-07";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
