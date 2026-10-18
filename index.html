@@ -623,16 +623,18 @@ function vHome(v){
   v.querySelectorAll("[data-go]").forEach(c=>{const go=()=>{S.tab="bros";S.bview=c.dataset.go;render();window.scrollTo(0,0)};c.onclick=go;c.onkeydown=e=>{if(e.key==="Enter")go()}});
   if(nx){const t=M.tinute.find(x=>sameDay(x.d,nx.d));if(t&&t.conv[0])fillAgapa(t.conv[0])}
 }
+function pdfLine(items){let out="",p=null;for(const it of items){if(!("str" in it))continue;const t=it.transform,x=t[4],y=t[5],fs=Math.hypot(t[0],t[1])||10;
+  if(p){const same=Math.abs(y-p.y)<fs*0.3;out+=(!same||x-(p.x+p.w)>fs*0.12)?" ":""}out+=it.str;p={x,y,w:it.width};if(it.hasEOL){out+=" ";p=null}}return out}
 async function fillAgapa(f){
   if(!$("#agapa")||!S.api.file)return;
-  const key="l216.conv."+f.id+"."+(f.modifiedTime||"");
+  const key="l216.conv2."+f.id+"."+(f.modifiedTime||"");
   let info=null;try{info=JSON.parse(localStorage.getItem(key)||"null")}catch(_){}
   if(!info){
     try{
       const blob=await S.api.file(f.id,f.mimeType);const lib=await loadPdfJs();
       const pdf=await lib.getDocument({data:await blob.arrayBuffer()}).promise;let all="";
-      for(let p=1;p<=pdf.numPages;p++){const c=await (await pdf.getPage(p)).getTextContent();all+=" "+c.items.map(i=>i.str).join(" ")}
-      const n=all.replace(/\s+/g," ").replace(/ (?=[ăâîșțĂÂÎȘȚ](?:\W|$))/g,"");
+      for(let p=1;p<=pdf.numPages;p++){const c=await (await pdf.getPage(p)).getTextContent();all+=" "+pdfLine(c.items)}
+      const n=all.replace(/\s+/g," ").replace(/ ([,.;:])/g,"$1");
       const m=/agap\s?[ăa][^.;]{0,40}/i.exec(n);
       const agapa=!m?"":/non\s*-?\s*ritual/i.test(m[0])?"Agapă non-ritualică":/ritual/i.test(m[0])?"Agapă ritualică":"Agapă";
       const d=/dress\s*code\s*:\s*([^.]{5,160}\.)/i.exec(n);
@@ -853,7 +855,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-03";
+const APP_VERSION="2026.10.18-04";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
