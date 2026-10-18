@@ -855,15 +855,15 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-07";
+const APP_VERSION="2026.10.18-08";
 async function checkVersion(){
-  if(!S.api||S.api.mode!=="google")return;
+  if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
 }
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkVersion()});
 setInterval(checkVersion,15*60*1000);
 
-boot();
+checkVersion();boot();
 </script>
 
 </body></html>
