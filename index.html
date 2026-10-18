@@ -258,7 +258,7 @@ const CONFIG = {
   SHOW_TRUNCHI: false,     // situația personală la Trunchiul văduvei
   SHOW_CONTACTS: true,     // telefon și e-mail în lista fraților
   MEETING_TIME: "19:00",
-  MEETING_PLACE: "Templul din Feleac · HillHouse",
+  MEETING_PLACE: "Templul din Feleacu · HillHouse",
   DRESS_CODE: "Costum negru, cămașă albă, cravată neagră, pantofi negri, regalia.",
   MAPS_URL: "https://www.google.com/maps/search/?api=1&query=HillHouse%2C%20Feleacu%20534%2C%20Feleacu%2C%20Cluj",
   WAZE_URL: "https://waze.com/ul?q=Feleacu%20534%2C%20Feleacu%2C%20Cluj&navigate=yes",
@@ -988,7 +988,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-16";
+const APP_VERSION="2026.10.18-17";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
