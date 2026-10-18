@@ -202,8 +202,10 @@ function bootstrap_(me, email) {
     news: values_(CFG.SHEETS.news, "A2:E300"),
     events: [],
     plans: [],
+    excursions: [],
     errors: {}
   };
+  try { out.excursions = excursions_(); } catch (e) { out.errors.excursions = String(e.message || e); }
   try { out.plans = plans_(email); } catch (e) { out.errors.plans = String(e.message || e); }
   try { out.events = events_(); } catch (e) { out.errors.events = String(e.message || e); }
   const cat = catalog_();
@@ -224,7 +226,7 @@ function planSheet_() {
 function planRows_(sh) {
   const n = sh.getLastRow() - 1;
   if (n < 1) return [];
-  return sh.getRange(2, 1, n, 13).getDisplayValues().map((r, i) => ({ r: r, row: i + 2 }));
+  return sh.getRange(2, 1, n, 14).getDisplayValues().map((r, i) => ({ r: r, row: i + 2 }));
 }
 const tz_ = "Europe/Bucharest";
 const dmy_ = d => Utilities.formatDate(d, tz_, "dd.MM.yyyy");
@@ -243,47 +245,73 @@ function plans_(email) {
   return planRows_(planSheet_()).map(x => {
     const r = x.r, d = parseDate_(r[3]);
     return { id: r[11], name: r[1], date: d ? Utilities.formatDate(d, tz_, "yyyy-MM-dd") : "", loja: r[4], orient: r[5],
-             escort: r[6], car: r[7], note: r[8], stare: r[9] || "Anunțată", nota: r[10], evt: r[12], mine: String(r[2]).toLowerCase() === email, _d: d };
-  }).filter(p => p.id && p._d && p._d >= t0 && norm_(p.stare) !== "anulata")
+             escort: r[6], car: r[7], note: r[8], stare: r[9] || "Anunțată", nota: r[10], evt: r[12], persons: r[13], mine: String(r[2]).toLowerCase() === email, _d: d };
+  }).filter(p => p.id && norm_(p.stare) !== "anulata" && (p._d ? p._d >= t0 : String(p.evt).indexOf("ex:") === 0))
     .map(p => { delete p._d; return p; });
 }
 
+/* Excursiile lojii: foaia „Excursii” din Registrul călătoriilor (un rând pe excursie) */
+function excursions_() {
+  const sh = SpreadsheetApp.openById(CFG.SHEETS.visits).getSheetByName("Excursii");
+  if (!sh) return [];
+  return sh.getRange("A2:L20").getDisplayValues()
+    .filter(r => r[0] && r[1] && norm_(r[11]) !== "nu")
+    .map(r => ({ id: String(r[0]).trim(), titlu: r[1], de: r[2], pana: r[3], loc: r[4], adresa: r[5], program: r[6],
+                 cost: r[7], termen: r[8], organizator: r[9], info: r[10] }));
+}
+
 function planAdd_(me, email, req) {
-  const d = parseDate_(req.date);
   const t0 = new Date(); t0.setHours(0, 0, 0, 0);
-  if (!d || d < t0 || d - t0 > 400 * 864e5) return { error: "bad_request", message: "Data nu este validă." };
-  let lojaTxt, orient, evt = "";
-  if (req.ev) {
-    // eveniment din calendarul lojii
-    const E = events_().find(x => x.id === String(req.ev));
-    if (!E) return { error: "bad_request", message: "Evenimentul nu mai este în calendar." };
-    const s0 = parseDate_(E.start.date || Utilities.formatDate(new Date(E.start.dateTime), tz_, "yyyy-MM-dd"));
-    const s1 = parseDate_(E.end.date) || s0;
-    if (d < s0 || d > s1) return { error: "bad_request", message: "Data nu este în perioada evenimentului." };
-    lojaTxt = clean_(E.summary, 150); orient = clean_(E.location, 100); evt = E.id;
+  let d = null, lojaTxt, orient, evt = "";
+  let persons = "";
+  if (req.ex) {
+    // excursie a lojii
+    const X = excursions_().find(x => x.id === String(req.ex));
+    if (!X) return { error: "bad_request", message: "Excursia nu mai este în listă." };
+    const end = parseDate_(X.pana) || parseDate_(X.de);
+    if (end && end < t0) return { error: "bad_request", message: "Excursia a avut deja loc." };
+    d = parseDate_(X.de);
+    lojaTxt = clean_(X.titlu, 150); orient = clean_(X.loc, 100); evt = "ex:" + X.id;
+    persons = String(Math.max(1, Math.min(6, parseInt(req.persons, 10) || 1)));
   } else {
-    const lodges = values_(CFG.SHEETS.lodges, "A2:C100");
-    const L = lodges.find(l => norm_(l[0]) === norm_(req.loja) && String(l[1]).trim() === String(req.nr || "").trim());
-    if (!L) return { error: "bad_request", message: "Loja nu este în listă." };
-    lojaTxt = L[0] + (L[1] ? " nr. " + L[1] : ""); orient = L[2] || "";
+    d = parseDate_(req.date);
+    if (!d || d < t0 || d - t0 > 400 * 864e5) return { error: "bad_request", message: "Data nu este validă." };
+    if (req.ev) {
+      // eveniment din calendarul lojii
+      const E = events_().find(x => x.id === String(req.ev));
+      if (!E) return { error: "bad_request", message: "Evenimentul nu mai este în calendar." };
+      const s0 = parseDate_(E.start.date || Utilities.formatDate(new Date(E.start.dateTime), tz_, "yyyy-MM-dd"));
+      const s1 = parseDate_(E.end.date) || s0;
+      if (d < s0 || d > s1) return { error: "bad_request", message: "Data nu este în perioada evenimentului." };
+      lojaTxt = clean_(E.summary, 150); orient = clean_(E.location, 100); evt = E.id;
+    } else {
+      const lodges = values_(CFG.SHEETS.lodges, "A2:C100");
+      const L = lodges.find(l => norm_(l[0]) === norm_(req.loja) && String(l[1]).trim() === String(req.nr || "").trim());
+      if (!L) return { error: "bad_request", message: "Loja nu este în listă." };
+      lojaTxt = L[0] + (L[1] ? " nr. " + L[1] : ""); orient = L[2] || "";
+    }
   }
   const escort = req.escort ? "Caută Maestru însoțitor" : "";
   const car = req.car === "ofer" ? "Are locuri în mașină" : req.car === "caut" ? "Caută loc în mașină" : "";
   const note = clean_(req.note, 200);
+  const dTxt = d ? dmy_(d) : "";
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) return { error: "server", message: "busy" };
   try {
     const sh = planSheet_();
     const rows = planRows_(sh);
-    const mineActive = rows.filter(x => String(x.r[2]).toLowerCase() === email && norm_(x.r[9]) !== "anulata" && (parseDate_(x.r[3]) || 0) >= t0);
-    const dup = mineActive.find(x => (evt ? x.r[12] === evt : norm_(x.r[4]) === norm_(lojaTxt)) && x.r[3] === dmy_(d));
+    const active = x => { const xd = parseDate_(x.r[3]); return norm_(x.r[9]) !== "anulata" && (!xd ? String(x.r[12]).indexOf("ex:") === 0 : xd >= t0); };
+    const mineActive = rows.filter(x => String(x.r[2]).toLowerCase() === email && active(x));
+    const dup = mineActive.find(x => evt.indexOf("ex:") === 0 ? x.r[12] === evt
+      : (evt ? x.r[12] === evt : norm_(x.r[4]) === norm_(lojaTxt)) && x.r[3] === dTxt);
     if (dup) {
       sh.getRange(dup.row, 7, 1, 3).setValues([[escort, car, note]]);
+      if (persons) sh.getRange(dup.row, 14).setNumberFormat("@").setValue(persons);
     } else {
       if (mineActive.length >= 10) return { error: "bad_request", message: "Ai deja 10 vizite anunțate." };
       const row = sh.getLastRow() + 1;
       const now = Utilities.formatDate(new Date(), tz_, "dd.MM.yyyy HH:mm");
-      sh.getRange(row, 1, 1, 13).setNumberFormat("@").setValues([[now, me.full, email, dmy_(d), lojaTxt, orient, escort, car, note, "Anunțată", "", Utilities.getUuid().slice(0, 8), evt]]);
+      sh.getRange(row, 1, 1, 14).setNumberFormat("@").setValues([[now, me.full, email, dTxt, lojaTxt, orient, escort, car, note, "Anunțată", "", Utilities.getUuid().slice(0, 8), evt, persons]]);
     }
   } finally { lock.releaseLock(); }
   return { ok: true, plans: plans_(email) };

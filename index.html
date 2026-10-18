@@ -179,6 +179,20 @@ a.chipbtn{text-decoration:none}
 button.navbtn{cursor:pointer;font-family:inherit}
 .evgo{cursor:pointer}.evgo:focus-visible{outline:2px solid var(--gold);outline-offset:4px;border-radius:8px}
 .evn{margin-top:6px}
+.excs{display:grid;grid-template-columns:1fr;gap:12px}
+@media (min-width:560px){.excs{grid-template-columns:1fr 1fr}}
+.exc{cursor:pointer;margin:0;display:flex;flex-direction:column;gap:2px}
+.exc:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.exc h3{font-family:var(--f-display);font-size:24px;line-height:1.1;margin:4px 0 2px}
+.exc .s{font-size:14px;color:var(--muted)}
+.exf{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:14px;font-weight:600;color:var(--gold-ink)}
+.exinfo{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px;margin:0}
+.exinfo dt{color:var(--muted)}.exinfo dd{margin:0}
+.exprog{white-space:pre-line;font-size:15px;line-height:1.5;margin:0}
+.pers{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px;border-radius:12px;background:var(--line)}
+.pers label{position:relative;display:grid;place-items:center;min-height:40px;border-radius:9px;font-size:15px;font-weight:500;color:var(--muted);cursor:pointer}
+.pers input{position:absolute;opacity:0;pointer-events:none}
+.pers label:has(input:checked){background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgb(0 0 0 / .12)}
 .evhead{padding:4px 0 8px}.evhead h3{font-family:var(--f-display);font-size:30px;line-height:1.1;margin:6px 0 8px;text-wrap:balance}
 .navbtn.ghost{background:transparent;color:var(--muted)}
 .list .item.plan{align-items:start}
@@ -455,6 +469,7 @@ async function loadAll(){
       ["roster","presence","visits","plates","lodges","news","tinuteTop","tinuteFiles","minutul","libTop","libFiles"].forEach(k=>S.data[k]=d[k]||[]);
       S.data.events=(d.events||[]).map(evMap);
       S.data.plans=d.plans||[];S.data.plansOn=Array.isArray(d.plans);
+      S.data.excursions=d.excursions||[];
       if(d.errors&&d.errors.events)S.err.events={status:500};
       if(!CONFIG.SHOW_NEWS)S.data.news=[];
       if(d.me){S.me.key=d.me.key;S.me.fisa=d.me.fisa||null}
@@ -569,7 +584,8 @@ function build(){
   M.events=(S.data.events||[]).filter(e=>!/^\s*🎂/.test(e.title)&&!/^ținută regulară/i.test(e.title));
   // aniversări (fără an)
   const in14=new Date(t0);in14.setDate(in14.getDate()+14);
-  M.plans=(S.data.plans||[]).map(p=>({...p,d:parseDMY(p.date),key:keyFromFull(p.name)})).filter(p=>p.d&&p.d>=t0).sort((a,b)=>a.d-b.d||String(a.name).localeCompare(b.name,"ro"));
+  M.plans=(S.data.plans||[]).map(p=>({...p,d:parseDMY(p.date),key:keyFromFull(p.name)})).filter(p=>(p.d&&p.d>=t0)||/^ex:/.test(p.evt||"")).sort((a,b)=>(a.d||8e15)-(b.d||8e15)||String(a.name).localeCompare(b.name,"ro"));
+  M.excursions=(S.data.excursions||[]).map(x=>({...x,d0:parseDMY(x.de),d1:parseDMY(x.pana)||parseDMY(x.de)})).filter(x=>!x.d1||x.d1>=t0).sort((a,b)=>(a.d0||8e15)-(b.d0||8e15));
   M.bdays=M.bros.filter(b=>b.birth).map(b=>{let n=new Date(t0.getFullYear(),b.birth.getMonth(),b.birth.getDate());if(n<t0)n.setFullYear(n.getFullYear()+1);return {b,n}}).filter(x=>x.n<=in14).sort((a,b)=>a.n-b.n);
   render();
 }
@@ -652,6 +668,11 @@ function vHome(v){
     <div class="card go" role="button" tabindex="0" data-go="calatorii"><div class="label">Vizite anuale</div><div class="big">${vis}<small> / ${n}</small></div><div class="small muted">frați cu vizita făcută</div><div class="bar"><i style="width:${Math.round(vis/n*100)}%"></i></div></div>
     <div class="card"><div class="label">Planșe</div><div class="big">${M.plates.length}</div><div class="small muted">de la ${pl} ${pl===1?"frate":"frați"}</div><div class="bar"><i style="width:${Math.round(pl/n*100)}%"></i></div></div>
   </div>`;
+  // excursiile lojii
+  if(M.excursions.length){
+    h+=`<div class="sec-title">Excursiile lojii</div><div class="excs">${M.excursions.map(x=>{const ps=exPlans(x);const n=ps.length,pp=ps.reduce((a,p)=>a+exPers(p),0);
+      return `<div class="card exc" role="button" tabindex="0" data-exopen="${esc(x.id)}"><div class="label">${esc(exRange(x))}</div><h3>${esc(x.titlu)}</h3><div class="s">${esc(x.loc)}</div><div class="exf"><span>${n?`${n===1?"un frate":n+(n>=20?" de":"")+" frați"}${pp>n?` · ${pp} persoane`:""}`:"Încă nu s-a înscris nimeni"}</span>${svg("chev",18)}</div></div>`}).join("")}</div>`;
+  }
   // agenda
   h+=`<div class="sec-title">În agenda lojii</div>`;
   if(S.err.events)h+=sectionErr("events","Calendarul lojii");
@@ -664,6 +685,7 @@ function vHome(v){
   h+=`<div class="sec-title">Loja în lume</div><div class="card"><ul class="list">${CONFIG.LINKS.map(([t,sub,url,ic])=>`<li class="item" style="grid-template-columns:1fr"><a class="rowbtn" href="${esc(url)}" target="_blank" rel="noopener"><span class="doci">${svg(ic,18)}</span><span><span class="t" style="display:block">${esc(t)}</span><span class="s">${esc(sub)}</span></span><span class="chev">${svg("ext",16)}</span></a></li>`).join("")}</ul></div>`;
   v.innerHTML=h;
   bindPlans(v);
+  v.querySelectorAll("[data-exopen]").forEach(c=>{const go=()=>{const x=M.excursions.find(y=>y.id===c.dataset.exopen);if(x)openExcursion(x)};c.onclick=go;c.onkeydown=k=>{if(k.key==="Enter"||k.key===" "){k.preventDefault();go()}}});
   v.querySelectorAll("[data-go]").forEach(c=>{const go=()=>{S.tab="bros";S.bview=c.dataset.go;render();window.scrollTo(0,0)};c.onclick=go;c.onkeydown=e=>{if(e.key==="Enter")go()}});
   if(nx){const t=M.tinute.find(x=>sameDay(x.d,nx.d));if(t&&t.conv[0])fillAgapa(t.conv[0])}
 }
@@ -818,7 +840,7 @@ const lodgeLabel=l=>l.nume+(l.nr?" nr. "+l.nr:"");
 const isoDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 function vPlans(limit){
   const g=new Map();
-  M.plans.forEach(p=>{const id=p.date+"|"+(p.evt||normRo(p.loja));if(!g.has(id))g.set(id,{d:p.d,date:p.date,loja:p.loja,orient:p.orient,evt:p.evt||"",items:[]});g.get(id).items.push(p)});
+  M.plans.filter(p=>!/^ex:/.test(p.evt||"")).forEach(p=>{const id=p.date+"|"+(p.evt||normRo(p.loja));if(!g.has(id))g.set(id,{d:p.d,date:p.date,loja:p.loja,orient:p.orient,evt:p.evt||"",items:[]});g.get(id).items.push(p)});
   let G=[...g.values()];
   const more=limit&&G.length>limit;if(limit)G=G.slice(0,limit);
   const me=M.me&&M.me.key;
@@ -874,6 +896,73 @@ function openEvent(ev){
     try{const r=await S.api.planCancel(b.dataset.planCancel);S.data.plans=r.plans||[];close();build()}
     catch(e){b.disabled=false;b.textContent="Anulează";alert(e.detail||"Nu s-a putut anula. Încearcă din nou.")}
   });
+}
+/* ---------- Excursiile lojii ---------- */
+const exPlans=x=>M.plans.filter(p=>p.evt==="ex:"+x.id);
+const exPers=p=>Math.max(1,parseInt(p.persons,10)||1);
+function exRange(x){
+  if(!x.d0)return "Perioadă de stabilit";
+  const a=x.d0,b=x.d1||x.d0,y=b.getFullYear();
+  if(sameDay(a,b))return `${a.getDate()} ${RO_MONTHS[a.getMonth()]} ${y}`;
+  if(a.getMonth()===b.getMonth()&&a.getFullYear()===b.getFullYear())return `${a.getDate()}–${b.getDate()} ${RO_MONTHS[a.getMonth()]} ${y}`;
+  return `${a.getDate()} ${RO_MONTHS[a.getMonth()]} – ${b.getDate()} ${RO_MONTHS[b.getMonth()]} ${y}`;
+}
+function openExcursion(x){
+  const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label",x.titlu);
+  const ps=exPlans(x),mine=ps.find(p=>p.mine),tot=ps.reduce((a,p)=>a+exPers(p),0);
+  const nav=x.adresa||x.loc;
+  const info=[["Cost",x.cost],["Înscriere până la",x.termen],["Organizator",x.organizator]].filter(r=>String(r[1]||"").trim());
+  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="xclose">Închide</button><h2>Excursia lojii</h2></div></header>
+  <div class="fbody"><div style="max-width:560px;margin:0 auto;padding:0 16px">
+    <div class="evhead"><div class="label">${esc(exRange(x))}</div><h3>${esc(x.titlu)}</h3><div class="s" style="color:var(--muted)">${esc(x.loc)}${x.adresa?` · ${esc(x.adresa)}`:""}</div>${nav?`<div class="lnav" style="margin-top:8px"><a class="navbtn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nav)}" target="_blank" rel="noopener">${svg("pin",14)}Google Maps</a><a class="navbtn" href="https://waze.com/ul?q=${encodeURIComponent(nav)}&navigate=yes" target="_blank" rel="noopener">${svg("pin",14)}Waze</a></div>`:""}</div>
+    ${String(x.program||"").trim()?`<div class="sec-title">Program</div><div class="card"><p class="exprog">${esc(x.program)}</p></div>`:""}
+    ${info.length?`<div class="sec-title">Detalii</div><div class="card"><dl class="exinfo">${info.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>${x.info?`<p class="small muted" style="margin:12px 0 0">${esc(x.info)}</p>`:""}</div>`:x.info?`<div class="card"><p class="small muted" style="margin:0">${esc(x.info)}</p></div>`:""}
+    <div class="sec-title">Cine merge${ps.length?` · ${ps.length} ${ps.length===1?"frate":"frați"}${tot>ps.length?`, ${tot} persoane`:""}`:""}</div>
+    <div class="card">${ps.length?`<ul class="list">${ps.map(p=>`<li class="item plan" style="grid-template-columns:1fr"><div class="who" style="margin:0"><span>Fr∴ ${esc(broName(p.key,p.name))}${p.mine?` <span class="small muted">(tu)</span>`:""}</span>${exPers(p)>1?`<span class="tag">${exPers(p)} persoane</span>`:""}${/are locuri/i.test(p.car)?`<span class="tag">are locuri în mașină</span>`:""}${/caută loc/i.test(p.car)?`<span class="tag">caută loc în mașină</span>`:""}${/confirmat/i.test(p.stare)?`<span class="tag ok">confirmat</span>`:""}</div>${p.note?`<div class="small muted">„${esc(p.note)}”</div>`:""}${p.nota?`<div class="nota">Secretariat: ${esc(p.nota)}</div>`:""}</li>`).join("")}</ul>`:`<p class="muted" style="margin:0">Încă nu s-a înscris niciun frate.</p>`}</div>
+    ${canPlan()?(mine?`<div class="acts2" style="margin-top:14px"><button class="navbtn" type="button" id="xedit">Modifică înscrierea</button><button class="navbtn ghost" type="button" id="xcancel">Anulează</button></div>`:`<button class="primary" type="button" id="xjoin">Merg și eu</button>`):""}
+    <p style="margin-top:14px;color:var(--muted);font-size:13px">Înscrierea este confirmată de Secretariat după plată. Sondajul de pe grup rămâne referința oficială.</p>
+  </div></div>`;
+  document.body.append(el);document.body.style.overflow="hidden";
+  const close=()=>{el.remove();document.body.style.overflow="";document.removeEventListener("keydown",onKey)};
+  const onKey=k=>{if(k.key==="Escape")close()};document.addEventListener("keydown",onKey);
+  el.querySelector("#xclose").onclick=close;
+  const j=el.querySelector("#xjoin")||el.querySelector("#xedit");if(j)j.onclick=()=>{close();openExForm(x,mine)};
+  const c=el.querySelector("#xcancel");if(c)c.onclick=async()=>{
+    if(!confirm("Anulezi înscrierea la această excursie?"))return;
+    c.disabled=true;c.textContent="Se anulează…";
+    try{const r=await S.api.planCancel(mine.id);S.data.plans=r.plans||[];close();build();const x2=M.excursions.find(y=>y.id===x.id);if(x2)openExcursion(x2)}
+    catch(e){c.disabled=false;c.textContent="Anulează";alert(e.detail||"Nu s-a putut anula. Încearcă din nou.")}
+  };
+}
+function openExForm(x,mine){
+  const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label","Înscriere la excursie");
+  const cur=mine?exPers(mine):1;const car=mine?(/are locuri/i.test(mine.car)?"ofer":/caută loc/i.test(mine.car)?"caut":""):"";
+  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="fclose">Închide</button><h2>${mine?"Modifică înscrierea":"Merg și eu"}</h2></div></header>
+  <div class="fbody"><form id="xform" novalidate>
+    <label class="f">Excursia</label><div class="card" style="margin:0"><div class="t" style="font-weight:600">${esc(x.titlu)}</div><div class="s" style="color:var(--muted);font-size:14px;margin-top:4px">${esc(exRange(x))} · ${esc(x.loc)}</div></div>
+    <label class="f" id="xpl">Câte persoane, cu tine</label>
+    <div class="pers" role="radiogroup" aria-labelledby="xpl">${[1,2,3,4].map(n=>`<label><input type="radio" name="xp" value="${n}"${n===cur?" checked":""}>${n===1?"Doar eu":n}</label>`).join("")}</div>
+    <div class="hint">De exemplu 2 dacă vii cu soția sau partenera.</div>
+    <label class="f" id="xcl">Mașina</label>
+    <div class="radios" role="radiogroup" aria-labelledby="xcl"><label><input type="radio" name="xc" value=""${car===""?" checked":""}>Nu e cazul</label><label><input type="radio" name="xc" value="ofer"${car==="ofer"?" checked":""}>Am locuri libere</label><label><input type="radio" name="xc" value="caut"${car==="caut"?" checked":""}>Caut loc</label></div>
+    <label class="f" for="xn">Mesaj pentru frați (opțional)</label>
+    <textarea id="xn" maxlength="200" placeholder="Ex.: venim cu mașina, mai avem 2 locuri">${mine?esc(mine.note||""):""}</textarea>
+    <p class="hint" style="margin-top:14px">Toți frații lojii văd cine merge. Secretariatul confirmă înscrierea după plată; sondajul de pe grup rămâne referința oficială.</p>
+    <div class="ferr" id="xerr" role="alert"></div>
+    <button class="primary" type="submit" id="xsend">${mine?"Salvează":"Mă înscriu"}</button>
+  </form></div>`;
+  document.body.append(el);document.body.style.overflow="hidden";
+  const close=()=>{el.remove();document.body.style.overflow="";document.removeEventListener("keydown",onKey)};
+  const onKey=k=>{if(k.key==="Escape")close()};document.addEventListener("keydown",onKey);
+  el.querySelector("#fclose").onclick=close;
+  el.querySelector("#xform").onsubmit=async sub=>{
+    sub.preventDefault();
+    const err=el.querySelector("#xerr"),btn=el.querySelector("#xsend");err.textContent="";btn.disabled=true;btn.textContent="Se trimite…";
+    try{
+      const r=await S.api.planAdd({ex:x.id,persons:+(el.querySelector('input[name="xp"]:checked')||{}).value||1,car:(el.querySelector('input[name="xc"]:checked')||{}).value||"",note:el.querySelector("#xn").value});
+      S.data.plans=r.plans||[];close();build();const x2=M.excursions.find(y=>y.id===x.id);if(x2)openExcursion(x2);
+    }catch(e){btn.disabled=false;btn.textContent=mine?"Salvează":"Mă înscriu";err.textContent=e.detail||(e.status===401?"Sesiunea a expirat. Reîncarcă pagina.":"Nu s-a putut trimite. Verifică conexiunea și încearcă din nou.")}
+  };
 }
 function openPlanForm({l=-1,date="",ev=null}={}){
   const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label","Anunță o vizită");
@@ -1022,7 +1111,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-19";
+const APP_VERSION="2026.10.18-20";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
