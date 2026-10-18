@@ -132,6 +132,12 @@ function list_(folderId) {
 }
 
 const isTinutaFolder_ = f => f.mimeType === "application/vnd.google-apps.folder" && /^tinuta/.test(norm_(f.name));
+// Minutul de regularitate se prezintă în ținută: devine vizibil din ziua ținutei, de la ora 21:00.
+function released_(name) {
+  const m = /(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(String(name || ""));
+  if (!m) return true;
+  return Date.now() >= new Date(+m[3], +m[2] - 1, +m[1], 21, 0, 0).getTime();
+}
 const isTinutaDoc_ = f => /minuta|convocator/i.test(f.name) || /^image\//.test(f.mimeType);
 const HIDDEN_ = () => [CFG.SHEETS.news, CFG.SHEETS.lodges];
 
@@ -139,7 +145,7 @@ function catalog_() {
   const tinuteTop = list_(CFG.FOLDERS.tinute).filter(isTinutaFolder_);
   let tinuteFiles = [];
   tinuteTop.forEach(f => { tinuteFiles = tinuteFiles.concat(list_(f.id).filter(x => x.mimeType !== "application/vnd.google-apps.folder" && isTinutaDoc_(x))); });
-  const minutul = list_(CFG.FOLDERS.minutul).filter(x => x.mimeType !== "application/vnd.google-apps.folder");
+  const minutul = list_(CFG.FOLDERS.minutul).filter(x => x.mimeType !== "application/vnd.google-apps.folder" && released_(x.name));
   const libTop = list_(CFG.FOLDERS.library).filter(x => HIDDEN_().indexOf(x.id) < 0);
   let libFiles = [];
   libTop.filter(x => x.mimeType === "application/vnd.google-apps.folder").forEach(f => { libFiles = libFiles.concat(list_(f.id).filter(x => x.mimeType !== "application/vnd.google-apps.folder")); });

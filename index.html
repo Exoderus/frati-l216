@@ -494,7 +494,8 @@ function build(){
   // documente ținute
   const tFolders=(S.data.tinuteTop||[]).filter(f=>f.mimeType==="application/vnd.google-apps.folder"&&/^tinuta/i.test(norm(f.name)));
   const files=S.data.tinuteFiles||[];
-  const minutul=(S.data.minutul||[]).filter(f=>!/folder/.test(f.mimeType)).map(f=>({...f,d:parseDMY(f.name),label:minutulLabel(f.name)}));
+  const released=d=>!d||Date.now()>=new Date(d.getFullYear(),d.getMonth(),d.getDate(),21,0,0).getTime();
+  const minutul=(S.data.minutul||[]).filter(f=>!/folder/.test(f.mimeType)).map(f=>({...f,d:parseDMY(f.name),label:minutulLabel(f.name)})).filter(f=>released(f.d));
   M.minutul=minutul;
   M.tinute=tFolders.map(f=>{
     const d=parseRoDate(f.name);
@@ -875,7 +876,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-10";
+const APP_VERSION="2026.10.18-11";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
