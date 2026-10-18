@@ -175,6 +175,33 @@ a.chipbtn{text-decoration:none}
 .vmsg{margin:auto;text-align:center;color:var(--muted);padding:24px}
 .viewer .fallback{flex:1;display:grid;place-items:center;text-align:center;padding:24px}
 
+/* Vizite anunțate */
+button.navbtn{cursor:pointer;font-family:inherit}
+.navbtn.ghost{background:transparent;color:var(--muted)}
+.list .item.plan{align-items:start}
+.plan .who{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;font-size:14px}
+.plan .who + .who{margin-top:4px}
+.plan .acts2{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.plan .nota{margin-top:6px;font-size:13px;color:var(--gold-ink)}
+.tag.ok{background:var(--p-soft);color:var(--p)}
+.cta{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:48px;margin-top:10px;border-radius:12px;border:1px dashed var(--gold);background:var(--gold-soft);color:var(--gold-ink);font:inherit;font-weight:600;font-size:15px;cursor:pointer}
+.fbody{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 0 calc(28px + env(safe-area-inset-bottom,0px))}
+.fbody form{max-width:560px;margin:0 auto;padding:0 16px}
+.fbody label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:18px 0 6px;letter-spacing:.02em}
+.fbody select,.fbody input[type=date],.fbody textarea{width:100%;box-sizing:border-box;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:0 12px;font:inherit;font-size:16px}
+.fbody textarea{padding:10px 12px;min-height:84px;resize:vertical}
+.fbody .hint{font-size:13px;color:var(--muted);margin-top:6px}
+.fbody .check{display:flex;gap:10px;align-items:flex-start;margin-top:18px;font-size:15px;cursor:pointer}
+.fbody .check input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--gold)}
+.radios{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:12px;background:var(--line)}
+.radios label{position:relative;display:grid;place-items:center;text-align:center;min-height:40px;padding:4px 6px;border-radius:9px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer}
+.radios input{position:absolute;opacity:0;pointer-events:none}
+.radios label:has(input:checked){background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgb(0 0 0 / .12)}
+.radios label:has(input:focus-visible){outline:2px solid var(--gold)}
+.primary{display:block;width:100%;height:52px;margin-top:22px;border:none;border-radius:12px;background:var(--gold);color:#fff;font:inherit;font-size:16px;font-weight:700;cursor:pointer}
+.primary:disabled{opacity:.6;cursor:default}
+.ferr{margin-top:12px;color:var(--n);font-size:14px}
+
 /* Login */
 .login{min-height:100%;display:grid;place-items:center;padding-block:40px}
 .login .box{max-width:380px;text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center}
@@ -303,7 +330,7 @@ function serverAdapter(token){
     try{r=await fetch(CONFIG.SERVICE_URL,{method:"POST",body:JSON.stringify(Object.assign({token,action},extra||{}))})}
     catch(e){throw new ApiError(0,"network")}
     let j;try{j=await r.json()}catch(_){throw new ApiError(r.status||500,"bad_response")}
-    if(j&&j.error){const st=j.error==="unauthorized"?401:(j.error==="not_member"||j.error==="forbidden")?403:500;const e=new ApiError(st,j.error);e.email=j.email;throw e}
+    if(j&&j.error){const st=j.error==="unauthorized"?401:(j.error==="not_member"||j.error==="forbidden")?403:j.error==="bad_request"?400:500;const e=new ApiError(st,j.error);e.email=j.email;e.detail=j.message||"";throw e}
     return j;
   }
   const pl=jwtPayload(token)||{};
@@ -311,6 +338,8 @@ function serverAdapter(token){
     mode:"google",
     async me(){return {email:String(pl.email||"").toLowerCase(),name:pl.given_name||""}},
     bootstrap(){return call("bootstrap")},
+    planAdd(data){return call("plan_add",data)},
+    planCancel(id){return call("plan_cancel",{id})},
     async file(id){const j=await call("file",{id});const bin=atob(j.b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:j.mime||"application/octet-stream"})}
   };
 }
@@ -420,6 +449,7 @@ async function loadAll(){
       S.err={};
       ["roster","presence","visits","plates","lodges","news","tinuteTop","tinuteFiles","minutul","libTop","libFiles"].forEach(k=>S.data[k]=d[k]||[]);
       S.data.events=(d.events||[]).map(evMap);
+      S.data.plans=d.plans||[];S.data.plansOn=Array.isArray(d.plans);
       if(d.errors&&d.errors.events)S.err.events={status:500};
       if(!CONFIG.SHOW_NEWS)S.data.news=[];
       if(d.me){S.me.key=d.me.key;S.me.fisa=d.me.fisa||null}
@@ -534,6 +564,7 @@ function build(){
   M.events=(S.data.events||[]).filter(e=>!/^\s*🎂/.test(e.title)&&!/^ținută regulară/i.test(e.title));
   // aniversări (fără an)
   const in14=new Date(t0);in14.setDate(in14.getDate()+14);
+  M.plans=(S.data.plans||[]).map(p=>({...p,d:parseDMY(p.date),key:keyFromFull(p.name)})).filter(p=>p.d&&p.d>=t0).sort((a,b)=>a.d-b.d||String(a.name).localeCompare(b.name,"ro"));
   M.bdays=M.bros.filter(b=>b.birth).map(b=>{let n=new Date(t0.getFullYear(),b.birth.getMonth(),b.birth.getDate());if(n<t0)n.setFullYear(n.getFullYear()+1);return {b,n}}).filter(x=>x.n<=in14).sort((a,b)=>a.n-b.n);
   render();
 }
@@ -616,6 +647,8 @@ function vHome(v){
     <div class="card go" role="button" tabindex="0" data-go="calatorii"><div class="label">Vizite anuale</div><div class="big">${vis}<small> / ${n}</small></div><div class="small muted">frați cu vizita făcută</div><div class="bar"><i style="width:${Math.round(vis/n*100)}%"></i></div></div>
     <div class="card"><div class="label">Planșe</div><div class="big">${M.plates.length}</div><div class="small muted">de la ${pl} ${pl===1?"frate":"frați"}</div><div class="bar"><i style="width:${Math.round(pl/n*100)}%"></i></div></div>
   </div>`;
+  // vizite anunțate
+  if(M.plans.length)h+=`<div class="sec-title">Cine mai merge în vizită</div>`+vPlans(3);
   // agenda
   h+=`<div class="sec-title">În agenda lojii</div>`;
   if(S.err.events)h+=sectionErr("events","Calendarul lojii");
@@ -627,6 +660,7 @@ function vHome(v){
   }
   h+=`<div class="sec-title">Loja în lume</div><div class="card"><ul class="list">${CONFIG.LINKS.map(([t,sub,url,ic])=>`<li class="item" style="grid-template-columns:1fr"><a class="rowbtn" href="${esc(url)}" target="_blank" rel="noopener"><span class="doci">${svg(ic,18)}</span><span><span class="t" style="display:block">${esc(t)}</span><span class="s">${esc(sub)}</span></span><span class="chev">${svg("ext",16)}</span></a></li>`).join("")}</ul></div>`;
   v.innerHTML=h;
+  bindPlans(v);
   v.querySelectorAll("[data-go]").forEach(c=>{const go=()=>{S.tab="bros";S.bview=c.dataset.go;render();window.scrollTo(0,0)};c.onclick=go;c.onkeydown=e=>{if(e.key==="Enter")go()}});
   if(nx){const t=M.tinute.find(x=>sameDay(x.d,nx.d));if(t&&t.conv[0])fillAgapa(t.conv[0])}
 }
@@ -744,23 +778,25 @@ function vBros(v){
   const cur=S.bview||"calatorii";
   const seg=`<div class="seg" role="tablist" aria-label="Vedere">${[["calatorii","Călătoriile fraților"],["loji","Loji din Zona V"]].map(([k,l])=>`<button type="button" role="tab" aria-selected="${cur===k}" data-segb="${k}">${l}</button>`).join("")}</div>`;
   const bind=()=>v.querySelectorAll("[data-segb]").forEach(b=>b.onclick=()=>{S.bview=b.dataset.segb;vBros(v);window.scrollTo(0,0)});
-  if(cur==="calatorii"){v.innerHTML=seg+vCalatorii();bind();return}
+  if(cur==="calatorii"){v.innerHTML=seg+vCalatorii();bind();bindPlans(v);return}
   if(S.err.lodges||!M.lodges.length){v.innerHTML=seg+vLoji();bind();return}
-  v.innerHTML=seg+`<div class="card" style="margin:10px 0"><p style="margin:0 0 6px">Aici găsiți lojile Zonei V, ca să vă puteți planifica vizitele. Când doriți să mergeți în vizită, anunțați Secretarul nostru. Loja noastră anunță vizita la loja gazdă.</p><p style="margin:0"><strong>Ucenicii și Calfele</strong> merg în vizită doar însoțiți de un Maestru.</p><p class="small muted" style="margin:8px 0 0;font-style:italic">Lista este în curs de actualizare.</p></div><input class="search" type="search" id="lojiQ" placeholder="Caută lojă, număr, oraș sau secretar" autocomplete="off" aria-label="Caută o lojă" style="margin-bottom:6px"><div id="lojiList">${vLoji("")}</div>`;
+  v.innerHTML=seg+`<div class="card" style="margin:10px 0"><p style="margin:0 0 6px">Aici găsiți lojile Zonei V, ca să vă puteți planifica vizitele. Când doriți să mergeți în vizită, apăsați „Anunță o vizită” la loja respectivă. Frații văd cine mai merge, iar Secretarul nostru ia legătura cu loja gazdă.</p><p style="margin:0"><strong>Ucenicii și Calfele</strong> merg în vizită doar însoțiți de un Maestru.</p><p class="small muted" style="margin:8px 0 0;font-style:italic">Lista este în curs de actualizare.</p></div><input class="search" type="search" id="lojiQ" placeholder="Caută lojă, număr, oraș sau secretar" autocomplete="off" aria-label="Caută o lojă" style="margin-bottom:6px"><div id="lojiList">${vLoji("")}</div>`;
   bind();
   const q=v.querySelector("#lojiQ"),list=v.querySelector("#lojiList");
-  q.addEventListener("input",()=>{list.innerHTML=vLoji(q.value)});
+  bindPlans(v);
+  q.addEventListener("input",()=>{list.innerHTML=vLoji(q.value);bindPlans(list)});
 }
 function broName(k,raw){const b=M.byKey&&M.byKey.get(k);return b?b.prenume.split(/\s+/)[0]+" "+b.nume:String(raw||"")}
 function vCalatorii(){
   if(S.err.visits)return sectionErr("visits","Registrul călătoriilor");
   const intro=`<div class="card" style="margin:10px 0"><p style="margin:0">Călătoriile fraților noștri la alte loji în anul masonic 6026–6027. Obiectivul fiecărui frate: cel puțin o vizită pe an la o lojă soră.</p></div>`;
+  const plansH=`<div class="sec-title">Vizite anunțate</div>`+vPlans();
   const V=M.visits.slice().sort((a,b)=>(b.d||0)-(a.d||0));
-  if(!V.length)return intro+`<div class="state">Încă nu există călătorii înregistrate în acest an masonic.</div>`;
+  if(!V.length)return intro+plansH+`<div class="sec-title">Călătorii efectuate</div><div class="state">Încă nu există călătorii înregistrate în acest an masonic.</div>`;
   const who=new Map();V.forEach(x=>{if(!who.has(x.key))who.set(x.key,[]);who.get(x.key).push(x)});
   const n=M.bros.length||who.size;const done=M.bros.filter(b=>who.has(b.key)).length||who.size;
   const ors=new Set(V.map(x=>normRo(x.orient)).filter(Boolean));
-  let h=intro+`<div class="pulse">
+  let h=intro+plansH+`<div class="sec-title">Călătorii efectuate</div><div class="pulse">
     <div class="card"><div class="label">Călătorii</div><div class="big">${V.length}</div><div class="small muted">vizite înregistrate</div></div>
     <div class="card"><div class="label">Frați</div><div class="big">${done}<small> / ${n}</small></div><div class="small muted">cu vizita anului</div><div class="bar"><i style="width:${Math.round(done/n*100)}%"></i></div></div>
     <div class="card"><div class="label">Orienturi</div><div class="big">${ors.size}</div><div class="small muted">vizitate</div></div>
@@ -773,6 +809,82 @@ function vCalatorii(){
   h+=`<div class="sec-title">Jurnalul călătoriilor</div><div class="card"><ul class="list">${[...g.values()].map(e=>`<li class="item" style="grid-template-columns:auto minmax(0,1fr)"><div class="datebox">${e.d?`<b>${e.d.getDate()}</b><span>${RO_MONTHS[e.d.getMonth()].slice(0,3)}</span>`:"<b>–</b>"}</div><div><div class="t">${esc(e.loja)}</div><div class="s">${e.orient?`Or∴ ${esc(e.orient)} · `:""}${esc(e.names.join(", "))}</div></div></li>`).join("")}</ul></div>`;
   return h;
 }
+/* ---------- Vizite anunțate ---------- */
+const canPlan=()=>!!(S.api&&S.api.planAdd&&S.data.plansOn);
+const lodgeLabel=l=>l.nume+(l.nr?" nr. "+l.nr:"");
+const isoDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+function vPlans(limit){
+  const g=new Map();
+  M.plans.forEach(p=>{const id=p.date+"|"+normRo(p.loja);if(!g.has(id))g.set(id,{d:p.d,date:p.date,loja:p.loja,orient:p.orient,items:[]});g.get(id).items.push(p)});
+  let G=[...g.values()];
+  const more=limit&&G.length>limit;if(limit)G=G.slice(0,limit);
+  const me=M.me&&M.me.key;
+  if(!G.length)return `<div class="state">Nicio vizită anunțată deocamdată. Anunță-ți vizita și vezi cine mai merge.</div>${canPlan()?`<button class="cta" type="button" data-plan-new>${svg("tinute",18)}Anunță o vizită</button>`:""}`;
+  const li=G.map(e=>{
+    const L=M.lodges.findIndex(l=>normRo(lodgeLabel(l))===normRo(e.loja));
+    const amIn=e.items.some(p=>p.mine);
+    const days=Math.round((e.d-today())/864e5);
+    const when=days===0?"astăzi":days===1?"mâine":cap(e.d.toLocaleDateString("ro-RO",{weekday:"long"}));
+    const who=e.items.map(p=>{
+      const tags=[p.escort?`<span class="tag">caută Maestru</span>`:"",/are locuri/i.test(p.car)?`<span class="tag">are locuri în mașină</span>`:"",/caută loc/i.test(p.car)?`<span class="tag">caută loc în mașină</span>`:"",/confirmat/i.test(p.stare)?`<span class="tag ok">confirmată</span>`:""].join("");
+      return `<div class="who"><span>Fr∴ ${esc(broName(p.key,p.name))}${p.key===me||p.mine?` <span class="small muted">(tu)</span>`:""}</span>${tags}${p.mine&&canPlan()?`<button class="navbtn ghost" type="button" data-plan-cancel="${esc(p.id)}">Anulează</button>`:""}</div>${p.note?`<div class="small muted" style="margin-left:2px">„${esc(p.note)}”</div>`:""}${p.nota?`<div class="nota">Secretariat: ${esc(p.nota)}</div>`:""}`;
+    }).join("");
+    return `<li class="item plan" style="grid-template-columns:auto minmax(0,1fr)"><div class="datebox"><b>${e.d.getDate()}</b><span>${RO_MONTHS[e.d.getMonth()].slice(0,3)}</span></div><div><div class="t">R∴L∴ ${esc(e.loja)}</div><div class="s">${e.orient?`Or∴ ${esc(e.orient)} · `:""}${esc(when)}</div>${who}${!amIn&&canPlan()&&L>=0?`<div class="acts2"><button class="navbtn" type="button" data-plan-new data-l="${L}" data-d="${esc(e.date)}">Merg și eu</button></div>`:""}</div></li>`;
+  }).join("");
+  return `<div class="card"><ul class="list">${li}</ul></div>${more?`<button class="cta" type="button" data-go-plans>Toate vizitele anunțate</button>`:canPlan()?`<button class="cta" type="button" data-plan-new>${svg("tinute",18)}Anunță o vizită</button>`:""}`;
+}
+function bindPlans(root){
+  root.querySelectorAll("[data-plan-new]").forEach(b=>b.onclick=()=>openPlanForm({l:b.dataset.l!==undefined?+b.dataset.l:-1,date:b.dataset.d||""}));
+  root.querySelectorAll("[data-go-plans]").forEach(b=>b.onclick=()=>{S.tab="bros";S.bview="calatorii";render();window.scrollTo(0,0)});
+  root.querySelectorAll("[data-plan-cancel]").forEach(b=>b.onclick=async()=>{
+    if(!confirm("Anulezi această vizită anunțată?"))return;
+    b.disabled=true;b.textContent="Se anulează…";
+    try{const r=await S.api.planCancel(b.dataset.planCancel);S.data.plans=r.plans||[];build()}
+    catch(e){b.disabled=false;b.textContent="Anulează";alert(e.detail||"Nu s-a putut anula. Încearcă din nou.")}
+  });
+}
+function openPlanForm({l=-1,date=""}={}){
+  const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label","Anunță o vizită");
+  const uc=M.me&&/ucenic|calf/i.test(M.me.grad||"");
+  const orients=[...new Set(M.lodges.map(x=>x.orient||"Cluj"))].sort((a,b)=>(a==="Cluj"?-1:b==="Cluj"?1:a.localeCompare(b,"ro")));
+  const opts=orients.map(o=>`<optgroup label="Orientul ${esc(o)}">${M.lodges.map((x,i)=>[x,i]).filter(([x])=>(x.orient||"Cluj")===o).map(([x,i])=>`<option value="${i}"${i===l?" selected":""}>${esc(lodgeLabel(x))}</option>`).join("")}</optgroup>`).join("");
+  const min=isoDate(today());
+  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="pclose">Închide</button><h2>Anunță o vizită</h2></div></header>
+  <div class="fbody"><form id="pform" novalidate>
+    <label class="f" for="pl">Loja pe care vrei să o vizitezi</label>
+    <select id="pl" required>${l<0?`<option value="" selected disabled>Alege loja</option>`:""}${opts}</select>
+    <div class="hint" id="ptin"></div>
+    <label class="f" for="pd">Data ținutei</label>
+    <input type="date" id="pd" min="${min}" value="${esc(date)}" required>
+    ${uc?`<label class="check"><input type="checkbox" id="pe" checked><span>Caut un Maestru care să mă însoțească<br><span class="small muted">Ucenicii și Calfele merg în vizită doar însoțiți de un Maestru.</span></span></label>`:""}
+    <label class="f" id="pcl">Mașina</label>
+    <div class="radios" role="radiogroup" aria-labelledby="pcl"><label><input type="radio" name="pc" value="" checked>Nu e cazul</label><label><input type="radio" name="pc" value="ofer">Am locuri libere</label><label><input type="radio" name="pc" value="caut">Caut loc</label></div>
+    <label class="f" for="pn">Mesaj pentru frați (opțional)</label>
+    <textarea id="pn" maxlength="200" placeholder="Ex.: plec din Cluj la 17:00, am 2 locuri"></textarea>
+    <p class="hint" style="margin-top:14px">Toți frații lojii noastre văd cine merge. Secretarul ia legătura cu loja gazdă și confirmă vizita.</p>
+    <div class="ferr" id="perr" role="alert"></div>
+    <button class="primary" type="submit" id="psend">Anunță vizita</button>
+  </form></div>`;
+  document.body.append(el);document.body.style.overflow="hidden";
+  const close=()=>{el.remove();document.body.style.overflow="";document.removeEventListener("keydown",onKey)};
+  const onKey=e=>{if(e.key==="Escape")close()};document.addEventListener("keydown",onKey);
+  el.querySelector("#pclose").onclick=close;
+  const sel=el.querySelector("#pl"),tin=el.querySelector("#ptin");
+  const showTin=()=>{const x=M.lodges[+sel.value];tin.textContent=x&&x.tinute?"Ținute: "+x.tinute:""};sel.onchange=showTin;showTin();
+  el.querySelector("#pform").onsubmit=async ev=>{
+    ev.preventDefault();
+    const err=el.querySelector("#perr"),btn=el.querySelector("#psend");err.textContent="";
+    const x=M.lodges[+sel.value];const d=el.querySelector("#pd").value;
+    if(sel.value===""||!x){err.textContent="Alege loja.";sel.focus();return}
+    if(!d||d<min){err.textContent="Alege data ținutei (de azi înainte).";el.querySelector("#pd").focus();return}
+    btn.disabled=true;btn.textContent="Se trimite…";
+    try{
+      const pe=el.querySelector("#pe");
+      const r=await S.api.planAdd({loja:x.nume,nr:x.nr,date:d,escort:!!(pe&&pe.checked),car:(el.querySelector('input[name="pc"]:checked')||{}).value||"",note:el.querySelector("#pn").value});
+      S.data.plans=r.plans||[];close();S.tab="bros";S.bview="calatorii";build();window.scrollTo(0,0);
+    }catch(e){btn.disabled=false;btn.textContent="Anunță vizita";err.textContent=e.detail||(e.status===401?"Sesiunea a expirat. Reîncarcă pagina.":"Nu s-a putut trimite. Verifică conexiunea și încearcă din nou.")}
+  };
+}
 function normRo(t){return String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
 function vLoji(q){
   if(S.err.lodges)return sectionErr("lodges","Lista lojilor");
@@ -782,7 +894,7 @@ function vLoji(q){
   if(!L.length)return `<div class="state">Nicio lojă nu se potrivește căutării.</div>`;
   const orients=[...new Set(L.map(l=>l.orient||"Cluj"))].sort((a,b)=>(a==="Cluj"?-1:b==="Cluj"?1:a.localeCompare(b,"ro")));
   const old=L.some(l=>/verific/i.test(l.valid));
-  return `${old?`<div class="small muted">Datele marcate „de verificat” provin dintr-o listă mai veche; confirmați-le la Secretariat înainte de o vizită.</div>`:""}`+orients.map(o=>`<div class="sec-title">Orientul ${esc(o)}</div><div class="card" style="padding-block:6px">${L.filter(l=>(l.orient||"Cluj")===o).map(l=>`<div class="lodge"><div class="lh"><span class="t">R∴L∴ ${esc(l.nume)}${l.nr?` nr. ${esc(l.nr)}`:""}</span>${/verific/i.test(l.valid)?`<span class="tag">de verificat</span>`:""}</div>${l.tinute?`<div class="s">${esc(l.tinute)}</div>`:""}${l.contact?`<div class="s">${esc(l.contact)}${l.functie?` · ${esc(l.functie)}`:""}</div>`:""}${l.adresa?`<div class="s">${esc(l.adresa)}</div><div class="lnav"><a class="navbtn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.adresa)}" target="_blank" rel="noopener">${svg("pin",14)}Google Maps</a><a class="navbtn" href="https://waze.com/ul?q=${encodeURIComponent(l.adresa)}&navigate=yes" target="_blank" rel="noopener">${svg("pin",14)}Waze</a></div>`:""}<div class="lc">${l.tel?`<a href="tel:${esc(String(l.tel).replace(/\s/g,""))}">${esc(l.tel)}</a>`:""}${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>`:""}</div></div>`).join("")}</div>`).join("");
+  return `${old?`<div class="small muted">Datele marcate „de verificat” provin dintr-o listă mai veche; confirmați-le la Secretariat înainte de o vizită.</div>`:""}`+orients.map(o=>`<div class="sec-title">Orientul ${esc(o)}</div><div class="card" style="padding-block:6px">${L.filter(l=>(l.orient||"Cluj")===o).map(l=>`<div class="lodge"><div class="lh"><span class="t">R∴L∴ ${esc(l.nume)}${l.nr?` nr. ${esc(l.nr)}`:""}</span>${/verific/i.test(l.valid)?`<span class="tag">de verificat</span>`:""}</div>${l.tinute?`<div class="s">${esc(l.tinute)}</div>`:""}${l.contact?`<div class="s">${esc(l.contact)}${l.functie?` · ${esc(l.functie)}`:""}</div>`:""}${l.adresa?`<div class="s">${esc(l.adresa)}</div><div class="lnav"><a class="navbtn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.adresa)}" target="_blank" rel="noopener">${svg("pin",14)}Google Maps</a><a class="navbtn" href="https://waze.com/ul?q=${encodeURIComponent(l.adresa)}&navigate=yes" target="_blank" rel="noopener">${svg("pin",14)}Waze</a></div>`:""}${canPlan()?`<div class="lnav"><button class="navbtn" type="button" data-plan-new data-l="${M.lodges.indexOf(l)}">${svg("tinute",14)}Anunță o vizită</button></div>`:""}<div class="lc">${l.tel?`<a href="tel:${esc(String(l.tel).replace(/\s/g,""))}">${esc(l.tel)}</a>`:""}${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>`:""}</div></div>`).join("")}</div>`).join("");
 }
 function fmtTel(t){t=String(t).replace(/\D/g,"");if(t.length===9)t="0"+t;return t.replace(/^(\d{4})(\d{3})(\d{3})$/,"$1 $2 $3")}
 
@@ -876,7 +988,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-15";
+const APP_VERSION="2026.10.18-16";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}

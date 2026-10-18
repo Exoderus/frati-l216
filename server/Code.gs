@@ -37,6 +37,8 @@ function doPost(e) {
     if (!me) return json_({ error: "not_member", email: who.email });
     if (req.action === "bootstrap") return json_(bootstrap_(me, who.email));
     if (req.action === "file") return json_(file_(String(req.id || "")));
+    if (req.action === "plan_add") return json_(planAdd_(me, who.email, req));
+    if (req.action === "plan_cancel") return json_(planCancel_(who.email, String(req.id || "")));
     return json_({ error: "bad_request" });
   } catch (err) {
     return json_({ error: "server", message: String(err && err.message || err) });
@@ -73,7 +75,7 @@ function member_(email) {
   const rows = rosterRows_();
   const r = rows.find(x => String(x[10]).trim().toLowerCase() === email) || rows.find(x => String(x[9]).trim().toLowerCase() === email);
   if (!r || norm_(r[12]) !== "activ") return null;
-  return { key: key_(r[1], r[2]), row: r.row, name: r[2] + " " + r[1] };
+  return { key: key_(r[1], r[2]), row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4] };
 }
 
 /* ---------- jurnal de acces ---------- */
@@ -194,12 +196,95 @@ function bootstrap_(me, email) {
     lodges: values_(CFG.SHEETS.lodges, "A2:J100"),
     news: values_(CFG.SHEETS.news, "A2:E300"),
     events: [],
+    plans: [],
     errors: {}
   };
+  try { out.plans = plans_(email); } catch (e) { out.errors.plans = String(e.message || e); }
   try { out.events = events_(); } catch (e) { out.errors.events = String(e.message || e); }
   const cat = catalog_();
   Object.keys(cat).forEach(k => out[k] = cat[k]);
   return out;
+}
+
+/* ---------- vizite anunțate („Cine mai merge?”) ----------
+   Foaia „Vizite anunțate” din Registrul călătoriilor. Frații pot doar adăuga
+   propria intenție și o pot anula pe a lor; Secretariatul schimbă Starea în Drive. */
+const PLAN_SHEET_ = "Vizite anunțate";
+const PLAN_STARI_ = ["Anunțată", "Confirmată", "Efectuată", "Anulată"];
+function planSheet_() {
+  const sh = SpreadsheetApp.openById(CFG.SHEETS.visits).getSheetByName(PLAN_SHEET_);
+  if (!sh) throw new Error("Lipsește foaia " + PLAN_SHEET_);
+  return sh;
+}
+function planRows_(sh) {
+  const n = sh.getLastRow() - 1;
+  if (n < 1) return [];
+  return sh.getRange(2, 1, n, 12).getDisplayValues().map((r, i) => ({ r: r, row: i + 2 }));
+}
+const tz_ = "Europe/Bucharest";
+const dmy_ = d => Utilities.formatDate(d, tz_, "dd.MM.yyyy");
+function parseDate_(s) {
+  s = String(s || "").trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = /^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})$/.exec(s);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  return null;
+}
+const clean_ = (s, n) => String(s || "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, n);
+
+function plans_(email) {
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  return planRows_(planSheet_()).map(x => {
+    const r = x.r, d = parseDate_(r[3]);
+    return { id: r[11], name: r[1], date: d ? Utilities.formatDate(d, tz_, "yyyy-MM-dd") : "", loja: r[4], orient: r[5],
+             escort: r[6], car: r[7], note: r[8], stare: r[9] || "Anunțată", nota: r[10], mine: String(r[2]).toLowerCase() === email, _d: d };
+  }).filter(p => p.id && p._d && p._d >= t0 && norm_(p.stare) !== "anulata")
+    .map(p => { delete p._d; return p; });
+}
+
+function planAdd_(me, email, req) {
+  const d = parseDate_(req.date);
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  if (!d || d < t0 || d - t0 > 400 * 864e5) return { error: "bad_request", message: "Data nu este validă." };
+  const lodges = values_(CFG.SHEETS.lodges, "A2:C100");
+  const L = lodges.find(l => norm_(l[0]) === norm_(req.loja) && String(l[1]).trim() === String(req.nr || "").trim());
+  if (!L) return { error: "bad_request", message: "Loja nu este în listă." };
+  const lojaTxt = L[0] + (L[1] ? " nr. " + L[1] : "");
+  const escort = req.escort ? "Caută Maestru însoțitor" : "";
+  const car = req.car === "ofer" ? "Are locuri în mașină" : req.car === "caut" ? "Caută loc în mașină" : "";
+  const note = clean_(req.note, 200);
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { error: "server", message: "busy" };
+  try {
+    const sh = planSheet_();
+    const rows = planRows_(sh);
+    const mineActive = rows.filter(x => String(x.r[2]).toLowerCase() === email && norm_(x.r[9]) !== "anulata" && (parseDate_(x.r[3]) || 0) >= t0);
+    const dup = mineActive.find(x => norm_(x.r[4]) === norm_(lojaTxt) && x.r[3] === dmy_(d));
+    if (dup) {
+      sh.getRange(dup.row, 7, 1, 3).setValues([[escort, car, note]]);
+    } else {
+      if (mineActive.length >= 10) return { error: "bad_request", message: "Ai deja 10 vizite anunțate." };
+      const row = sh.getLastRow() + 1;
+      const now = Utilities.formatDate(new Date(), tz_, "dd.MM.yyyy HH:mm");
+      sh.getRange(row, 1, 1, 12).setNumberFormat("@").setValues([[now, me.full, email, dmy_(d), lojaTxt, L[2] || "", escort, car, note, "Anunțată", "", Utilities.getUuid().slice(0, 8)]]);
+    }
+  } finally { lock.releaseLock(); }
+  return { ok: true, plans: plans_(email) };
+}
+
+function planCancel_(email, id) {
+  if (!/^[\w-]{4,40}$/.test(id)) return { error: "bad_request" };
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { error: "server", message: "busy" };
+  try {
+    const sh = planSheet_();
+    const x = planRows_(sh).find(y => y.r[11] === id && String(y.r[2]).toLowerCase() === email);
+    if (!x) return { error: "forbidden" };
+    if (norm_(x.r[9]) === "efectuata") return { error: "bad_request", message: "Vizita este deja efectuată." };
+    sh.getRange(x.row, 10).setValue("Anulată");
+  } finally { lock.releaseLock(); }
+  return { ok: true, plans: plans_(email) };
 }
 
 /* ---------- fișiere ---------- */
