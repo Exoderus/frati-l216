@@ -720,8 +720,8 @@ function vLib(v){
 }
 
 function vBros(v){
-  const cur=S.bview||"loji";
-  const seg=`<div class="seg" role="tablist" aria-label="Vedere">${[["loji","Loji din Zona V"],["calatorii","Călătoriile fraților"]].map(([k,l])=>`<button type="button" role="tab" aria-selected="${cur===k}" data-segb="${k}">${l}</button>`).join("")}</div>`;
+  const cur=S.bview||"calatorii";
+  const seg=`<div class="seg" role="tablist" aria-label="Vedere">${[["calatorii","Călătoriile fraților"],["loji","Loji din Zona V"]].map(([k,l])=>`<button type="button" role="tab" aria-selected="${cur===k}" data-segb="${k}">${l}</button>`).join("")}</div>`;
   const bind=()=>v.querySelectorAll("[data-segb]").forEach(b=>b.onclick=()=>{S.bview=b.dataset.segb;vBros(v);window.scrollTo(0,0)});
   if(cur==="calatorii"){v.innerHTML=seg+vCalatorii();bind();return}
   if(S.err.lodges||!M.lodges.length){v.innerHTML=seg+vLoji();bind();return}
@@ -855,7 +855,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-04";
+const APP_VERSION="2026.10.18-05";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
