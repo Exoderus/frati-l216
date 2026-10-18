@@ -711,13 +711,17 @@ function vMe(v){
   }
   const F=S.me.fisa;
   const grad=(F&&F.grad)||me.grad, fn=(F&&F.functie)||me.functie;
+  const durata=st=>{const a=parseDMY(st);if(!a)return "";const t=today();let m=(t.getFullYear()-a.getFullYear())*12+(t.getMonth()-a.getMonth());if(t.getDate()<a.getDate())m--;if(m<0)return "";
+    const y=Math.floor(m/12),mo=m%12,de=n=>(n%100===0||n%100>=20)?"de ":"";
+    const ys=y?(y===1?"1 an":`${y} ${de(y)}ani`):"",ms=mo?(mo===1?"1 lună":`${mo} luni`):"";
+    return ys&&ms?`${ys} și ${ms}`:(ys||ms||"mai puțin de o lună")};
   const frow=(l,v)=>v?`<div class="frow"><span class="muted">${esc(l)}</span><span class="num">${esc(v)}</span></div>`:"";
   const gtl=F?[["Inițiat Ucenic",F.initiere],["Trecut Calfă",F.calfa],["Ridicat Maestru",F.maestru]].filter(x=>x[1]):[];
   h+=`<section class="card"><div class="label">Fișa mea</div>
     <div style="margin-top:6px;font-family:var(--f-display);font-size:22px;font-weight:700">${esc(me.prenume+" "+me.nume)}</div>
     <div class="small muted">${esc([grad,fn].filter(Boolean).join(" · "))}${F&&F.id?` · ${esc(F.id)}`:""}</div>
     ${gtl.length?`<div class="gtl">${gtl.map(([l,v])=>`<div class="gstep"><span class="gdot"></span><div><div class="small muted">${esc(l)}</div><div class="num" style="font-weight:600">${esc(v)}</div></div></div>`).join("")}</div>`:""}
-    ${F?`<div class="flist">${frow("Membru L216 din",F.afiliere)}${frow("Loja de proveniență",F.provenienta)}${frow("Naș",F.nas)}${frow("Ani în L216",F.ani)}</div>`:""}
+    ${F?`<div class="flist">${frow("Membru L216 din",F.afiliere)}${frow("Loja de proveniență",F.provenienta)}${frow("Naș",F.nas)}${frow("Activ în R∴L∴ Transilvania nr. 216",durata(F.afiliere||F.initiere))}</div>`:""}
     ${F&&!F.initiere?`<div class="small muted" style="margin-top:8px">Unele date lipsesc din registru. Le poți transmite Secretariatului.</div>`:""}
   </section>`;
   if(S.api.mode==="google")h+=`<button class="gbtn" type="button" style="align-self:center" onclick="logout()">Ieși din cont</button>`;
@@ -871,7 +875,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-09";
+const APP_VERSION="2026.10.18-10";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
