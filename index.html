@@ -652,8 +652,6 @@ function vHome(v){
     <div class="card go" role="button" tabindex="0" data-go="calatorii"><div class="label">Vizite anuale</div><div class="big">${vis}<small> / ${n}</small></div><div class="small muted">frați cu vizita făcută</div><div class="bar"><i style="width:${Math.round(vis/n*100)}%"></i></div></div>
     <div class="card"><div class="label">Planșe</div><div class="big">${M.plates.length}</div><div class="small muted">de la ${pl} ${pl===1?"frate":"frați"}</div><div class="bar"><i style="width:${Math.round(pl/n*100)}%"></i></div></div>
   </div>`;
-  // vizite anunțate
-  if(M.plans.length)h+=`<div class="sec-title">Cine mai merge în vizită</div>`+vPlans(3);
   // agenda
   h+=`<div class="sec-title">În agenda lojii</div>`;
   if(S.err.events)h+=sectionErr("events","Calendarul lojii");
@@ -1024,7 +1022,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-18";
+const APP_VERSION="2026.10.18-19";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
