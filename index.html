@@ -746,7 +746,7 @@ function vBros(v){
   const bind=()=>v.querySelectorAll("[data-segb]").forEach(b=>b.onclick=()=>{S.bview=b.dataset.segb;vBros(v);window.scrollTo(0,0)});
   if(cur==="calatorii"){v.innerHTML=seg+vCalatorii();bind();return}
   if(S.err.lodges||!M.lodges.length){v.innerHTML=seg+vLoji();bind();return}
-  v.innerHTML=seg+`<div class="card" style="margin:10px 0"><p style="margin:0 0 6px">Aici găsiți lojile Zonei V, ca să vă puteți planifica vizitele. Când doriți să mergeți în vizită, anunțați Secretarul nostru. Loja noastră anunță vizita la loja gazdă.</p><p style="margin:0"><strong>Ucenicii și Calfele</strong> merg în vizită doar însoțiți de un Maestru.</p></div><input class="search" type="search" id="lojiQ" placeholder="Caută lojă, număr, oraș sau secretar" autocomplete="off" aria-label="Caută o lojă" style="margin-bottom:6px"><div id="lojiList">${vLoji("")}</div>`;
+  v.innerHTML=seg+`<div class="card" style="margin:10px 0"><p style="margin:0 0 6px">Aici găsiți lojile Zonei V, ca să vă puteți planifica vizitele. Când doriți să mergeți în vizită, anunțați Secretarul nostru. Loja noastră anunță vizita la loja gazdă.</p><p style="margin:0"><strong>Ucenicii și Calfele</strong> merg în vizită doar însoțiți de un Maestru.</p><p class="small muted" style="margin:8px 0 0;font-style:italic">Lista este în curs de actualizare.</p></div><input class="search" type="search" id="lojiQ" placeholder="Caută lojă, număr, oraș sau secretar" autocomplete="off" aria-label="Caută o lojă" style="margin-bottom:6px"><div id="lojiList">${vLoji("")}</div>`;
   bind();
   const q=v.querySelector("#lojiQ"),list=v.querySelector("#lojiList");
   q.addEventListener("input",()=>{list.innerHTML=vLoji(q.value)});
@@ -876,7 +876,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-13";
+const APP_VERSION="2026.10.18-14";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
