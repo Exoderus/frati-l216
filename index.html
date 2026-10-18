@@ -188,7 +188,7 @@ button.navbtn{cursor:pointer;font-family:inherit}
 .exf{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:14px;font-weight:600;color:var(--gold-ink)}
 .exinfo{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:15px;margin:0}
 .exinfo dt{color:var(--muted)}.exinfo dd{margin:0}
-.exprog{white-space:pre-line;font-size:15px;line-height:1.5;margin:0}
+.exprog{white-space:pre-line;font-size:15px;line-height:1.5;margin:0;overflow-wrap:anywhere}
 .pers{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px;border-radius:12px;background:var(--line)}
 .pers label{position:relative;display:grid;place-items:center;min-height:40px;border-radius:9px;font-size:15px;font-weight:500;color:var(--muted);cursor:pointer}
 .pers input{position:absolute;opacity:0;pointer-events:none}
@@ -871,6 +871,13 @@ function bindPlans(root){
     catch(e){b.disabled=false;b.textContent="Anulează";alert(e.detail||"Nu s-a putut anula. Încearcă din nou.")}
   });
 }
+function evText(h){
+  // descrierea din calendar poate conține HTML simplu: îl transformăm în text curat
+  // DOMParser nu execută scripturi și nu încarcă imagini
+  const d=new DOMParser().parseFromString(String(h||"").replace(/<br\s*\/?>/gi,"\n").replace(/<\/(p|div|li)>/gi,"\n").replace(/<li[^>]*>/gi,"• "),"text/html").body;
+  return (d.textContent||"").replace(/\u00a0/g," ").replace(/\n{3,}/g,"\n\n").trim();
+}
+function linkify(t){return esc(t).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]]/g,u=>`<a href="${u}" target="_blank" rel="noopener">${u.length>48?u.slice(0,45)+"…":u}</a>`)}
 function openEvent(ev){
   const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label",ev.title);
   const ps=M.plans.filter(p=>p.evt===ev.id);
@@ -880,6 +887,7 @@ function openEvent(ev){
   el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="eclose">Închide</button><h2>Eveniment</h2></div></header>
   <div class="fbody"><div style="max-width:560px;margin:0 auto;padding:0 16px">
     <div class="evhead"><div class="label">${esc(when)}</div><h3>${esc(ev.title)}</h3>${ev.location?`<div class="s" style="color:var(--muted)">${esc(ev.location)}</div><div class="lnav" style="margin-top:8px"><a class="navbtn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}" target="_blank" rel="noopener">${svg("pin",14)}Google Maps</a><a class="navbtn" href="https://waze.com/ul?q=${encodeURIComponent(ev.location)}&navigate=yes" target="_blank" rel="noopener">${svg("pin",14)}Waze</a></div>`:""}</div>
+    ${evText(ev.description)?`<div class="sec-title">Detalii</div><div class="card"><p class="exprog">${linkify(evText(ev.description))}</p></div>`:""}
     <div class="sec-title">Cine merge</div>
     <div class="card" id="evwho">${ps.length?`<ul class="list">${ps.map(p=>`<li class="item plan" style="grid-template-columns:1fr"><div class="who" style="margin:0"><span>Fr∴ ${esc(broName(p.key,p.name))}${p.mine?` <span class="small muted">(tu)</span>`:""}</span>${p.escort?`<span class="tag">caută Maestru</span>`:""}${/are locuri/i.test(p.car)?`<span class="tag">are locuri în mașină</span>`:""}${/caută loc/i.test(p.car)?`<span class="tag">caută loc în mașină</span>`:""}${/confirmat/i.test(p.stare)?`<span class="tag ok">confirmată</span>`:""}${p.mine&&canPlan()?`<button class="navbtn ghost" type="button" data-plan-cancel="${esc(p.id)}">Anulează</button>`:""}</div>${p.note?`<div class="small muted">„${esc(p.note)}”</div>`:""}${p.nota?`<div class="nota">Secretariat: ${esc(p.nota)}</div>`:""}</li>`).join("")}</ul>`:`<p class="muted" style="margin:0">Încă nu s-a anunțat niciun frate.</p>`}</div>
     ${canPlan()&&!mine?`<button class="primary" type="button" id="ejoin">Merg și eu</button>`:""}
@@ -1111,7 +1119,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-20";
+const APP_VERSION="2026.10.18-21";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}

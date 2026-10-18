@@ -170,8 +170,8 @@ function events_() {
     const day = d => Utilities.formatDate(d, tz, "yyyy-MM-dd");
     const id = ev.getId() + "@" + day(s);
     return allDay
-      ? { id: id, summary: ev.getTitle(), location: ev.getLocation(), start: { date: day(s) }, end: { date: day(e) } }
-      : { id: id, summary: ev.getTitle(), location: ev.getLocation(), start: { dateTime: s.toISOString() }, end: { date: day(e) } };
+      ? { id: id, summary: ev.getTitle(), location: ev.getLocation(), description: ev.getDescription(), start: { date: day(s) }, end: { date: day(e) } }
+      : { id: id, summary: ev.getTitle(), location: ev.getLocation(), description: ev.getDescription(), start: { dateTime: s.toISOString() }, end: { date: day(e) } };
   });
 }
 
