@@ -599,7 +599,8 @@ function minutulLabel(name){
 /* ============ RANDARE ============ */
 function render(){
   const app=$("#app");
-  const hello=M.me?`Bine ai venit, Iubite Frate ${esc(M.me.apel)}`:"Bine ai venit";
+  const hr=new Date().getHours(),salut=hr>=5&&hr<11?"Bună dimineața":hr>=11&&hr<18?"Bună ziua":"Bună seara";
+  const hello=M.me?`${salut}, Frate ${esc(M.me.apel)}`:salut;
   app.innerHTML=`
   <div class="band"><div class="wrap"><div class="crest">${CREST}<div style="flex:1;min-width:0">
     <div class="eyebrow">R∴L∴ Transilvania nr. 216 · Or∴ Cluj</div>
