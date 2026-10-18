@@ -118,6 +118,8 @@ a.chipbtn{text-decoration:none}
 /* Ținute */
 .tinuta-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .tinuta-h h3{font-family:var(--f-display);font-size:22px;font-weight:700;margin:0}
+.cnt{min-width:28px;height:28px;padding:0 8px;border-radius:999px;display:grid;place-items:center;font-weight:700;font-size:13px;background:var(--line);color:var(--fg)}
+.go{cursor:pointer}
 .pill{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600}
 .pill.P{background:var(--p-soft);color:var(--p)}.pill.M{background:var(--m-soft);color:var(--m)}.pill.N{background:var(--n-soft);color:var(--n)}.pill.X{background:var(--line);color:var(--muted)}
 .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px;margin-top:8px}
@@ -463,7 +465,7 @@ function build(){
   M.bros=(S.data.roster||[]).filter(r=>/^\d+$/.test(String(r[0]||"").trim())&&r[1]).map(r=>({
     nume:String(r[1]).trim(),prenume:String(r[2]||"").trim(),birth:parseDMY(r[3]),grad:r[4]||"",functie:r[5]||"",demnitar:r[6]||"",
     profesie:r[7]||"",tel:r[8]||"",email:String(r[9]||"").trim().toLowerCase(),gacc:String(r[10]||"").trim().toLowerCase(),apel:String(r[11]||"").trim()||String(r[2]||"").trim().split(/\s+/)[0],key:keyOf(r[1],r[2])}));
-  const byKey=new Map(M.bros.map(b=>[b.key,b]));
+  const byKey=new Map(M.bros.map(b=>[b.key,b]));M.byKey=byKey;
   // eu
   if(S.me.key)M.me=byKey.get(S.me.key)||null;
   else if(S.me.previewName)M.me=byKey.get(keyFromFull(S.me.previewName))||null;
@@ -604,7 +606,7 @@ function vHome(v){
   const pl=new Set(M.plates.map(x=>x.key)).size;
   h+=`<div class="sec-title">Viața lojii</div><div class="pulse">
     <div class="card"><div class="label">Ultima ținută</div><div class="big">${lastPct===null?"–":lastPct+"%"}</div><div class="small muted">${M.last?esc(M.last.c.P+" prezenți · "+fmtDM(M.last.d)):"încă fără date"}</div><div class="bar"><i style="width:${lastPct||0}%"></i></div></div>
-    <div class="card"><div class="label">Vizite anuale</div><div class="big">${vis}<small> / ${n}</small></div><div class="small muted">frați cu vizita făcută</div><div class="bar"><i style="width:${Math.round(vis/n*100)}%"></i></div></div>
+    <div class="card go" role="button" tabindex="0" data-go="calatorii"><div class="label">Vizite anuale</div><div class="big">${vis}<small> / ${n}</small></div><div class="small muted">frați cu vizita făcută</div><div class="bar"><i style="width:${Math.round(vis/n*100)}%"></i></div></div>
     <div class="card"><div class="label">Planșe</div><div class="big">${M.plates.length}</div><div class="small muted">de la ${pl} ${pl===1?"frate":"frați"}</div><div class="bar"><i style="width:${Math.round(pl/n*100)}%"></i></div></div>
   </div>`;
   // agenda
@@ -618,6 +620,7 @@ function vHome(v){
   }
   h+=`<div class="sec-title">Loja în lume</div><div class="card"><ul class="list">${CONFIG.LINKS.map(([t,sub,url,ic])=>`<li class="item" style="grid-template-columns:1fr"><a class="rowbtn" href="${esc(url)}" target="_blank" rel="noopener"><span class="doci">${svg(ic,18)}</span><span><span class="t" style="display:block">${esc(t)}</span><span class="s">${esc(sub)}</span></span><span class="chev">${svg("ext",16)}</span></a></li>`).join("")}</ul></div>`;
   v.innerHTML=h;
+  v.querySelectorAll("[data-go]").forEach(c=>{const go=()=>{S.tab="bros";S.bview=c.dataset.go;render();window.scrollTo(0,0)};c.onclick=go;c.onkeydown=e=>{if(e.key==="Enter")go()}});
   if(nx){const t=M.tinute.find(x=>sameDay(x.d,nx.d));if(t&&t.conv[0])fillAgapa(t.conv[0])}
 }
 async function fillAgapa(f){
@@ -715,10 +718,37 @@ function vLib(v){
 }
 
 function vBros(v){
-  if(S.err.lodges||!M.lodges.length){v.innerHTML=vLoji();return}
-  v.innerHTML=`<div class="card" style="margin-bottom:10px"><p style="margin:0 0 6px">Aici găsiți lojile Zonei V, ca să vă puteți planifica vizitele. Când doriți să mergeți în vizită, anunțați Secretarul nostru. Loja noastră anunță vizita la loja gazdă.</p><p style="margin:0"><strong>Ucenicii și Calfele</strong> merg în vizită doar însoțiți de un Maestru.</p></div><input class="search" type="search" id="lojiQ" placeholder="Caută lojă, număr, oraș sau secretar" autocomplete="off" aria-label="Caută o lojă" style="margin-bottom:6px"><div id="lojiList">${vLoji("")}</div>`;
+  const cur=S.bview||"loji";
+  const seg=`<div class="seg" role="tablist" aria-label="Vedere">${[["loji","Loji din Zona V"],["calatorii","Călătoriile fraților"]].map(([k,l])=>`<button type="button" role="tab" aria-selected="${cur===k}" data-segb="${k}">${l}</button>`).join("")}</div>`;
+  const bind=()=>v.querySelectorAll("[data-segb]").forEach(b=>b.onclick=()=>{S.bview=b.dataset.segb;vBros(v);window.scrollTo(0,0)});
+  if(cur==="calatorii"){v.innerHTML=seg+vCalatorii();bind();return}
+  if(S.err.lodges||!M.lodges.length){v.innerHTML=seg+vLoji();bind();return}
+  v.innerHTML=seg+`<div class="card" style="margin:10px 0"><p style="margin:0 0 6px">Aici găsiți lojile Zonei V, ca să vă puteți planifica vizitele. Când doriți să mergeți în vizită, anunțați Secretarul nostru. Loja noastră anunță vizita la loja gazdă.</p><p style="margin:0"><strong>Ucenicii și Calfele</strong> merg în vizită doar însoțiți de un Maestru.</p></div><input class="search" type="search" id="lojiQ" placeholder="Caută lojă, număr, oraș sau secretar" autocomplete="off" aria-label="Caută o lojă" style="margin-bottom:6px"><div id="lojiList">${vLoji("")}</div>`;
+  bind();
   const q=v.querySelector("#lojiQ"),list=v.querySelector("#lojiList");
   q.addEventListener("input",()=>{list.innerHTML=vLoji(q.value)});
+}
+function broName(k,raw){const b=M.byKey&&M.byKey.get(k);return b?b.prenume.split(/\s+/)[0]+" "+b.nume:String(raw||"")}
+function vCalatorii(){
+  if(S.err.visits)return sectionErr("visits","Registrul călătoriilor");
+  const intro=`<div class="card" style="margin:10px 0"><p style="margin:0">Călătoriile fraților noștri la alte loji în anul masonic 6026–6027. Obiectivul fiecărui frate: cel puțin o vizită pe an la o lojă soră.</p></div>`;
+  const V=M.visits.slice().sort((a,b)=>(b.d||0)-(a.d||0));
+  if(!V.length)return intro+`<div class="state">Încă nu există călătorii înregistrate în acest an masonic.</div>`;
+  const who=new Map();V.forEach(x=>{if(!who.has(x.key))who.set(x.key,[]);who.get(x.key).push(x)});
+  const n=M.bros.length||who.size;const done=M.bros.filter(b=>who.has(b.key)).length||who.size;
+  const ors=new Set(V.map(x=>normRo(x.orient)).filter(Boolean));
+  let h=intro+`<div class="pulse">
+    <div class="card"><div class="label">Călătorii</div><div class="big">${V.length}</div><div class="small muted">vizite înregistrate</div></div>
+    <div class="card"><div class="label">Frați</div><div class="big">${done}<small> / ${n}</small></div><div class="small muted">cu vizita anului</div><div class="bar"><i style="width:${Math.round(done/n*100)}%"></i></div></div>
+    <div class="card"><div class="label">Orienturi</div><div class="big">${ors.size}</div><div class="small muted">vizitate</div></div>
+  </div>`;
+  const me=M.me&&M.me.key;
+  const rank=[...who.entries()].sort((a,b)=>b[1].length-a[1].length||broName(a[0],a[1][0].who).localeCompare(broName(b[0],b[1][0].who),"ro"));
+  h+=`<div class="sec-title">Pe frați</div><div class="card"><ul class="list">${rank.map(([k,xs])=>{const unde=[...new Set(xs.map(x=>x.orient||x.loja).filter(Boolean))].join(", ");return `<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><div><div class="t">Fr∴ ${esc(broName(k,xs[0].who))}${k===me?` <span class="small muted">(tu)</span>`:""}</div><div class="s">${esc(unde)}</div></div><span class="cnt" aria-label="${xs.length} ${xs.length===1?"vizită":"vizite"}">${xs.length}</span></li>`}).join("")}</ul></div>`;
+  if(M.bros.length&&done<M.bros.length)h+=`<div class="small muted" style="margin:6px 4px 0">${M.bros.length-done===1?"Încă un frate are":`Încă ${M.bros.length-done} frați au`} vizita anului de făcut.</div>`;
+  const g=new Map();V.forEach(x=>{const id=(x.d?x.d.toDateString():"")+"|"+normRo(x.loja);if(!g.has(id))g.set(id,{d:x.d,loja:x.loja,orient:x.orient,names:[]});g.get(id).names.push(broName(x.key,x.who))});
+  h+=`<div class="sec-title">Jurnalul călătoriilor</div><div class="card"><ul class="list">${[...g.values()].map(e=>`<li class="item" style="grid-template-columns:auto minmax(0,1fr)"><div class="datebox">${e.d?`<b>${e.d.getDate()}</b><span>${RO_MONTHS[e.d.getMonth()].slice(0,3)}</span>`:"<b>–</b>"}</div><div><div class="t">${esc(e.loja)}</div><div class="s">${e.orient?`Or∴ ${esc(e.orient)} · `:""}${esc(e.names.join(", "))}</div></div></li>`).join("")}</ul></div>`;
+  return h;
 }
 function normRo(t){return String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
 function vLoji(q){
@@ -823,7 +853,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-02";
+const APP_VERSION="2026.10.18-03";
 async function checkVersion(){
   if(!S.api||S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
