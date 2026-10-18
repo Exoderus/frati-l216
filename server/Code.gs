@@ -13,6 +13,7 @@ const CFG = {
     visits:   "1Q_oiZyeHmlJ8Fd5EWAP2LccEsPrPKVHkVBsqZ3lAciw",
     plates:   "1YqHYz7_W6Yjw8m1BTzgWd1uvK5-zrAgMz6IX3NQ2rPQ",
     lodges:   "1Etk_aEJ_3PKXdCgPt7T21v9jKtfAYchN_8BHHJK-4c0",
+    matricol: "1wahZJvhNIMfh10GCw47xhRPvxUfVSDCX8y5O3Swuark",
     news:     "1Lo_7AdiMoOA6li6yo2e62JbIVjwzTJ3PausRyohLjBQ"
   },
   FOLDERS: {
@@ -161,6 +162,17 @@ function events_() {
   });
 }
 
+/* Fișa fratelui din „Registrul matricol L216” — doar a fratelui autentificat */
+function fisa_(key) {
+  try {
+    const rows = SpreadsheetApp.openById(CFG.SHEETS.matricol).getSheetByName("Frați").getRange("A7:R100").getDisplayValues();
+    const r = rows.find(x => x[1] && key_(x[1], x[2]) === key);
+    if (!r) return null;
+    return { id: r[0], status: r[4], grad: r[5], functie: r[6], initiere: r[8], calfa: r[9], maestru: r[10],
+             afiliere: r[11], provenienta: r[12], nas: r[13], ani: r[15] };
+  } catch (e) { return null; }
+}
+
 function bootstrap_(me, email) {
   // registrul fraților: doar ce afișează aplicația (fără telefoane, e-mailuri, anul nașterii)
   const roster = rosterRows_().map(r => {
@@ -168,7 +180,7 @@ function bootstrap_(me, email) {
     return [r[0], r[1], r[2], b ? b[1] + "." + b[2] + ".2000" : "", r[4], r[5], "", "", "", "", "", r[11]];
   });
   const out = {
-    me: { email: email, key: me.key },
+    me: { email: email, key: me.key, fisa: fisa_(me.key) },
     roster: roster,
     presence: SpreadsheetApp.openById(CFG.SHEETS.presence).getSheetByName("Registru prezență").getRange("A5:AZ200").getDisplayValues(),
     visits: values_(CFG.SHEETS.visits, "A5:E1000", "Vizite"),

@@ -196,6 +196,12 @@ a.chipbtn{text-decoration:none}
 .reg .pct{font-weight:600;padding-right:12px}
 .rc{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:7px;font-weight:600;font-size:12px}
 .rc.P{background:var(--p-soft);color:var(--p)}.rc.M{background:var(--m-soft);color:var(--m)}.rc.N{background:var(--n-soft);color:var(--n)}.rc.X{color:var(--muted)}
+.gtl{display:flex;flex-direction:column;gap:10px;margin-top:12px;padding-left:4px;border-left:2px solid var(--gold-soft)}
+.gstep{display:flex;gap:10px;align-items:flex-start;margin-left:-9px}
+.gdot{width:12px;height:12px;border-radius:50%;background:var(--gold);flex:none;margin-top:5px;box-shadow:0 0 0 3px var(--surface)}
+.flist{margin-top:12px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.frow{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:6px}
+.frow span:last-child{text-align:right;overflow-wrap:anywhere}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 
@@ -416,7 +422,7 @@ async function loadAll(){
       S.data.events=(d.events||[]).map(evMap);
       if(d.errors&&d.errors.events)S.err.events={status:500};
       if(!CONFIG.SHOW_NEWS)S.data.news=[];
-      if(d.me)S.me.key=d.me.key;
+      if(d.me){S.me.key=d.me.key;S.me.fisa=d.me.fisa||null}
     };
     // 1) afișare imediată din ultima versiune salvată pe acest dispozitiv
     let cached=null;try{cached=JSON.parse(localStorage.getItem(CK)||"null")}catch(_){}
@@ -703,7 +709,17 @@ function vMe(v){
     const r=rows.find(x=>keyFromFull(x[1])===me.key);
     if(r)h+=`<section class="card"><div class="label">Trunchiul văduvei</div><div class="big" style="margin-top:6px">${esc(r[8]||"0")}<small> lei rest de plată</small></div><div class="small muted">${esc(r[5]||"0")} ținute taxate × ${esc(tax||"")} lei · plătit ${esc(r[7]||"0")} lei · plata la Fr∴ Orator</div></section>`;
   }
-  h+=`<section class="card"><div class="label">Fișa mea</div><div style="margin-top:6px">${esc(me.prenume+" "+me.nume)}</div><div class="small muted">${esc([me.grad,me.functie].filter(Boolean).join(" · "))}</div></section>`;
+  const F=S.me.fisa;
+  const grad=(F&&F.grad)||me.grad, fn=(F&&F.functie)||me.functie;
+  const frow=(l,v)=>v?`<div class="frow"><span class="muted">${esc(l)}</span><span class="num">${esc(v)}</span></div>`:"";
+  const gtl=F?[["Inițiat Ucenic",F.initiere],["Trecut Calfă",F.calfa],["Ridicat Maestru",F.maestru]].filter(x=>x[1]):[];
+  h+=`<section class="card"><div class="label">Fișa mea</div>
+    <div style="margin-top:6px;font-family:var(--f-display);font-size:22px;font-weight:700">${esc(me.prenume+" "+me.nume)}</div>
+    <div class="small muted">${esc([grad,fn].filter(Boolean).join(" · "))}${F&&F.id?` · ${esc(F.id)}`:""}</div>
+    ${gtl.length?`<div class="gtl">${gtl.map(([l,v])=>`<div class="gstep"><span class="gdot"></span><div><div class="small muted">${esc(l)}</div><div class="num" style="font-weight:600">${esc(v)}</div></div></div>`).join("")}</div>`:""}
+    ${F?`<div class="flist">${frow("Membru L216 din",F.afiliere)}${frow("Loja de proveniență",F.provenienta)}${frow("Naș",F.nas)}${frow("Ani în L216",F.ani)}</div>`:""}
+    ${F&&!F.initiere?`<div class="small muted" style="margin-top:8px">Unele date lipsesc din registru. Le poți transmite Secretariatului.</div>`:""}
+  </section>`;
   if(S.api.mode==="google")h+=`<button class="gbtn" type="button" style="align-self:center" onclick="logout()">Ieși din cont</button>`;
   v.innerHTML=h;
 }
@@ -855,7 +871,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.18-08";
+const APP_VERSION="2026.10.18-09";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
