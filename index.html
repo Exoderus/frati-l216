@@ -418,14 +418,16 @@ function serverAdapter(token){
     if(j&&j.error){const st=j.error==="unauthorized"?401:(j.error==="not_member"||j.error==="forbidden")?403:j.error==="bad_request"?400:500;const e=new ApiError(st,j.error);e.email=j.email;e.detail=j.message||"";throw e}
     return j;
   }
+  // citirile (date, documente) se mai încearcă o dată, în liniște, dacă eșuează din cauza rețelei sau a serviciului
+  async function retry(fn){try{return await fn()}catch(err){if(!(err&&(err.status===0||err.status>=500)))throw err;await new Promise(r=>setTimeout(r,1500));return fn()}}
   const pl=jwtPayload(token)||{};
   return {
     mode:"google",
     async me(){return {email:String(pl.email||"").toLowerCase(),name:pl.given_name||""}},
-    bootstrap(){return call("bootstrap")},
+    bootstrap(){return retry(()=>call("bootstrap"))},
     planAdd(data){return call("plan_add",data)},
     planCancel(id){return call("plan_cancel",{id})},
-    async file(id){const j=await call("file",{id});const bin=atob(j.b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:j.mime||"application/octet-stream"})}
+    async file(id){const j=await retry(()=>call("file",{id}));const bin=atob(j.b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:j.mime||"application/octet-stream"})}
   };
 }
 
@@ -1368,7 +1370,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-09";
+const APP_VERSION="2026.10.19-10";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
