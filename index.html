@@ -102,6 +102,21 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .lp-rules li:last-child{border-bottom:none}
 .lp-rules b{color:var(--gold-ink);font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
 .lp-note{font-size:13px;color:var(--muted);margin:10px 0 0}
+.mine-top{text-align:center;padding-top:2px}
+.mine-top .stone{width:min(230px,62vw);margin:4px auto 0}
+.mine-top .tr{font-family:var(--f-display);font-weight:700;font-size:28px;line-height:1.1;margin-top:4px}
+.mine-top .n{font-size:15px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+.mine-top .n b{color:var(--fg);font-weight:600}
+.mine-top .bar{max-width:300px;margin:10px auto 0}
+.mine-top .msg{font-size:15px;margin:12px auto 0;max-width:340px;line-height:1.4;text-wrap:balance}
+.conds{list-style:none;margin:14px 0 0;padding:12px 0 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
+.conds li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:10px;align-items:start}
+.conds .mk{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--gold);color:#fff;margin-top:1px}
+.conds .mk.ok{background:var(--gold);border-color:var(--gold)}
+.conds .mk svg{width:14px;height:14px}
+.conds .t{font-weight:600;font-size:15px}
+.conds .s{font-size:13px;color:var(--muted);margin-top:2px}
+.conds .c{font-size:14px;font-weight:600;color:var(--gold-ink);font-variant-numeric:tabular-nums;white-space:nowrap;margin-top:2px}
 .lp-plus{font-weight:600;color:var(--gold-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 .lucr-top{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:center;margin-top:4px}
 .lucr-top .tr{font-family:var(--f-display);font-weight:700;font-size:24px;line-height:1.1}
@@ -705,21 +720,21 @@ function buildPiatra(){
   // vizite: 3 lovituri, max 3 pe an
   const seenV=new Set();
   M.visits.filter(x=>active.has(x.key)&&inYear(x.d)).forEach(x=>{const id=x.key+"|"+(x.d?x.d.getTime():"")+"|"+norm(x.loja);if(seenV.has(id))return;seenV.add(id);
-    const loc=String(x.orient||x.loja||"").trim();ev.push({d:x.d||y0,k:x.key,kind:"v",w:PIATRA.VIZ,g:"v"+(x.d?x.d.getTime():"")+"|"+norm(x.loja||loc),loc})});
+    const loc=String(x.orient||x.loja||"").trim();ev.push({d:x.d||y0,k:x.key,kind:"v",w:PIATRA.VIZ,g:"v"+(x.d?x.d.getTime():"")+"|"+norm(x.loja||loc),loc,src:x})});
   // planșe: 5 lovituri, max 2 pe an; Minutul de regularitate nu e planșă
   const seenP=new Set();const plates=[];
   M.plates.filter(x=>active.has(x.key)&&inYear(x.d)&&!/minutul/.test(norm([x.titlu,x.unde,x.grad,x.tema].join(" ")))).forEach(x=>{const id=x.key+"|"+norm(x.titlu);if(seenP.has(id))return;seenP.add(id);plates.push(x);
-    ev.push({d:x.d||y0,k:x.key,kind:"p",w:PIATRA.PL,g:"p"+id})});
+    ev.push({d:x.d||y0,k:x.key,kind:"p",w:PIATRA.PL,g:"p"+id,src:x})});
   ev.sort((a,b)=>(a.d||0)-(b.d||0)||"tvp".indexOf(a.kind)-"tvp".indexOf(b.kind));
   // per frate, cronologic, cu plafoane
-  const per=new Map(M.bros.map(b=>[b.key,{pres:0,viz:0,pl:0,lov:0,loja:0}]));
+  const per=new Map(M.bros.map(b=>[b.key,{pres:0,viz:0,pl:0,lov:0,loja:0,vlist:[],plist:[]}]));
   const counted=[];
   ev.forEach(e=>{const s=per.get(e.k);if(!s)return;
     if(e.kind==="t")s.pres++;
-    else if(e.kind==="v"){if(s.viz>=PIATRA.VIZ_MAX)return;s.viz++}
-    else{if(s.pl>=PIATRA.PL_MAX)return;s.pl++}
+    else if(e.kind==="v"){if(s.viz>=PIATRA.VIZ_MAX)return;s.viz++;s.vlist.push(e.src)}
+    else{if(s.pl>=PIATRA.PL_MAX)return;s.pl++;s.plist.push(e.src)}
     s.lov+=e.w;const lw=Math.max(0,Math.min(e.w,PIATRA.FULL-s.loja));s.loja+=lw;counted.push({...e,lw})});
-  per.forEach(s=>{s.perfect=s.lov>=PIATRA.FULL&&s.pres>=PIATRA.PRES_MIN&&s.viz>=1&&s.pl>=1;s.frame=s.perfect?24:Math.min(s.lov,23)});
+  per.forEach(s=>{s.perfect=s.lov>=PIATRA.FULL&&s.pres>=PIATRA.PRES_MIN&&s.viz>=1&&s.pl>=1;s.frame=s.perfect?24:Math.min(s.lov,23);s.treapta=treapta(s.lov/PIATRA.FULL,s.perfect)});
   // grupuri de lovituri (fără nume)
   const gm=new Map();
   counted.forEach(e=>{let g=gm.get(e.g);if(!g){g={kind:e.kind,d:e.d,loc:e.loc||"",n:0,w:0};gm.set(e.g,g)}g.n++;g.w+=e.lw});
@@ -798,6 +813,32 @@ function lucrareCard(){
       <div class="go" role="button" tabindex="0" data-go="calatorii"><div class="label">Vizita anuală</div><div class="v">${P.vizBros}<small> / ${n}</small></div><div class="s">frați ›</div></div>
       <div><div class="label">Planșe</div><div class="v">${P.plates.length}</div><div class="s">în acest an</div></div>
     </div></section>`;
+}
+
+function piatraMeaCard(me){
+  const P=M.piatra;const s=P&&P.per.get(me.key);if(!s)return "";
+  const F=PIATRA.FULL,miss=[];
+  if(s.pres<PIATRA.PRES_MIN)miss.push("prezența minimă");
+  if(!s.viz)miss.push("vizita anuală");
+  if(!s.pl)miss.push("planșa anului");
+  const rest=F-s.lov;
+  const msg=s.perfect?"Piatra ta e desăvârșită pentru anul acesta."
+    :rest>0?`Mai ai ${nrDe(rest,"lovitură de ciocan","lovituri de ciocan","o")} până la piatra perfectă.`
+    :`Ai adunat loviturile. Îți mai ${miss.length>1?"lipsesc":"lipsește"} ${miss.length>1?miss.slice(0,-1).join(", ")+" și "+miss[miss.length-1]:miss[0]}.`;
+  const ck=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+  const v0=s.vlist[s.vlist.length-1],p0=s.plist[s.plist.length-1];
+  const conds=[
+    [s.pres>=PIATRA.PRES_MIN,"Prezență minimă",`${s.pres} din ${PIATRA.TINUTE} ținute`,`${Math.min(s.pres,PIATRA.PRES_MIN)} din ${PIATRA.PRES_MIN}`],
+    [s.viz>0,"Vizita anuală",v0?[v0.loja,v0.orient].filter(Boolean).join(", ")+(v0.d?" · "+fmtShort(v0.d):""):"cel puțin o vizită la o lojă soră",s.viz>1?`${s.viz} vizite`:""],
+    [s.pl>0,"Planșa anului",p0?"„"+p0.titlu+"”"+(s.pl>1?" și încă una":""):"în Lojă sau pentru site",""]];
+  const lab=s.perfect?"Piatra mea perfectă":"Piatra mea, "+s.treapta;
+  return `<section class="card" aria-label="Piatra mea"><div class="label" style="color:var(--gold)">Piatra mea · ${PIATRA.AN}</div>
+    <div class="mine-top">${stoneHTML("stone-me",s.frame,lab)}
+      <div class="tr">${esc(s.treapta)}</div><div class="n"><b>${s.lov}</b> / ${F} lovituri de ciocan</div>
+      <div class="bar"><i style="width:${Math.min(100,Math.round(s.lov/F*100))}%"></i></div>
+      <p class="msg">${esc(msg)}</p></div>
+    <ul class="conds" aria-label="Condițiile pietrei perfecte">${conds.map(([ok,t,sub,c])=>`<li><span class="mk${ok?" ok":""}" role="img" aria-label="${ok?"îndeplinită":"neîndeplinită"}">${ok?ck:""}</span><div><div class="t">${esc(t)}</div><div class="s">${esc(sub)}</div></div><span class="c">${esc(c)}</span></li>`).join("")}</ul>
+    <p class="small muted" style="margin:12px 0 0">Doar tu vezi piatra ta.</p></section>`;
 }
 
 function openLucrare(){
@@ -947,7 +988,7 @@ function vRegistru(){
 
 function vMe(v){
   if(!M.me){v.innerHTML=`<div class="state">Nu am găsit contul ${esc(S.me.email||"")} în lista fraților activi. Situația personală apare după ce Secretarul îți asociază adresa de e-mail.</div>`;return}
-  const me=M.me,p=M.pres.get(me.key)||[];let h="";
+  const me=M.me,p=M.pres.get(me.key)||[];let h=piatraMeaCard(me);
   const held=M.dates.map((x,i)=>({...x,v:p[i]||""})).filter(x=>x.d<=today()||x.v);
   const c={P:0,M:0,N:0};held.forEach(x=>{if(c[x.v]!==undefined)c[x.v]++});
   const tot=c.P+c.M+c.N,pct=tot?Math.round(c.P/tot*100):null;
@@ -955,14 +996,6 @@ function vMe(v){
     <div class="big" style="margin-top:6px">${pct===null?"–":pct+"%"}<small> · ${c.P} prezențe, ${c.M} motivate, ${c.N} nemotivate</small></div>
     <div class="dots">${M.dates.map((x,i)=>{const s=p[i]||"";const fut=x.d>today();return `<div class="dot ${s||(fut?"F":"F")}" title="${esc(fmtDM(x.d))}"><b>${s||(fut?"·":"–")}</b>${x.d.getDate()}.${String(x.d.getMonth()+1).padStart(2,"0")}</div>`}).join("")}</div>
     <div class="small muted" style="margin-top:8px">P prezent · M absent motivat · N absent nemotivat</div></section>`;
-  const mv=M.visits.filter(x=>x.key===me.key).sort((a,b)=>(b.d||0)-(a.d||0));
-  h+=`<section class="card"><div class="label">Vizite la alte loji</div>
-    <div class="goal"><span class="mark ${mv.length?"ok":"no"}">${mv.length?"✓":"1"}</span><div>${mv.length?`Vizita anuală e făcută (${mv.length} ${mv.length===1?"vizită":"vizite"}).`:"Obiectivul anului: cel puțin o vizită la o lojă soră."}</div></div>
-    ${mv.length?`<ul class="list" style="margin-top:8px">${mv.map(x=>`<li class="item"><div class="datebox"><b>${x.d?x.d.getDate():"–"}</b><span>${x.d?RO_MONTHS[x.d.getMonth()].slice(0,3):""}</span></div><div><div class="t">${esc(x.loja)}</div><div class="s">${esc(x.orient)}</div></div><span></span></li>`).join("")}</ul>`:""}</section>`;
-  const mp=M.plates.filter(x=>x.key===me.key);
-  h+=`<section class="card"><div class="label">Planșele mele</div>
-    <div class="goal"><span class="mark ${mp.length?"ok":"no"}">${mp.length?"✓":"1"}</span><div>${mp.length?`${mp.length} ${mp.length===1?"planșă":"planșe"} în acest an masonic.`:"Obiectivul anului: o planșă, prezentată în ținută sau scrisă pentru site."}</div></div>
-    ${mp.length?`<ul class="list" style="margin-top:8px">${mp.map(x=>`<li class="item"><div class="datebox"><b>${x.d?x.d.getDate():"–"}</b><span>${x.d?RO_MONTHS[x.d.getMonth()].slice(0,3):""}</span></div><div><div class="t">${esc(x.titlu)}</div><div class="s">${esc([x.unde,x.tema].filter(Boolean).join(" · "))}</div></div><span></span></li>`).join("")}</ul>`:""}</section>`;
   if(CONFIG.SHOW_TRUNCHI&&S.data.trunchi){
     const rows=S.data.trunchi;const tax=(rows[0]||[])[3];
     const r=rows.find(x=>keyFromFull(x[1])===me.key);
@@ -985,6 +1018,7 @@ function vMe(v){
   </section>`;
   if(S.api.mode==="google")h+=`<button class="gbtn" type="button" style="align-self:center" onclick="logout()">Ieși din cont</button>`;
   v.innerHTML=h;
+  stoneMount(v.querySelector("#stone-me"),"l216.piatra.me."+me.key,S.viewShown);
 }
 
 function vLib(v){
@@ -1321,7 +1355,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-03";
+const APP_VERSION="2026.10.19-04";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
