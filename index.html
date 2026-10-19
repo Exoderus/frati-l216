@@ -1065,6 +1065,8 @@ function vLib(v){
   const n=k=>`${k} ${k===1?"document":"documente"}`;
   M.lib.filter(g=>g.files.length).forEach(g=>{
     const body=g.subs?g.subs.filter(x=>x.files.length).map(x=>`<div class="fold-sub">${esc(x.name)}</div>${li(x.files)}`).join(""):li(g.files);
+    // doar audio și candidații stau în dosar pliabil; restul secțiunilor rămân deschise, ca înainte
+    if(!g.subs&&!/candida/i.test(g.name)){h+=`<div class="sec-title">${esc(g.name)}</div><div class="card">${li(g.files)}</div>`;return}
     h+=`<details class="card fold"><summary><span class="doci">${svg(g.subs?"audio":"doc",18)}</span><span><span class="t">${esc(g.name)}</span><span class="s">${g.subs?`${g.files.length} ${g.files.length===1?"piesă":"piese"}`:n(g.files.length)}</span></span><span class="chev">${svg("chev",16)}</span></summary>${body}</details>`;
   });
   v.innerHTML=h;
@@ -1414,7 +1416,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-13";
+const APP_VERSION="2026.10.19-14";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
