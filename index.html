@@ -83,7 +83,26 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .bar{height:6px;border-radius:3px;background:var(--line);margin-top:8px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--gold);border-radius:3px}
 /* Piatra */
+.lucr{cursor:pointer}
+.lucr:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .lucr>.label{color:var(--gold)}
+.lp-hero{text-align:center;padding:4px 0 6px}
+.lp-hero .stone{width:min(270px,72vw);margin:0 auto}
+.lp-hero .tr{font-family:var(--f-display);font-weight:700;font-size:30px;line-height:1.1;margin-top:6px}
+.lp-hero .n{font-size:15px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+.lp-hero .n b{color:var(--fg);font-weight:600}
+.lp-hero .bar{max-width:320px;margin:10px auto 0}
+.lp-hero .nx{font-size:14px;color:var(--gold-ink);margin-top:10px;font-weight:600}
+.lp-src{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.lp-src .card{padding:12px}
+.lp-src .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1;margin-top:2px}
+.lp-src .s{font-size:12px;color:var(--muted)}
+.lp-rules{list-style:none;margin:0;padding:0}
+.lp-rules li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
+.lp-rules li:last-child{border-bottom:none}
+.lp-rules b{color:var(--gold-ink);font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.lp-note{font-size:13px;color:var(--muted);margin:10px 0 0}
+.lp-plus{font-weight:600;color:var(--gold-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 .lucr-top{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:center;margin-top:4px}
 .lucr-top .tr{font-family:var(--f-display);font-weight:700;font-size:24px;line-height:1.1}
 .lucr-top .n{font-size:14px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
@@ -770,7 +789,7 @@ function lucrareCard(){
   const n=M.bros.length||1;
   const lastPct=M.last?Math.round(M.last.c.P/Math.max(1,M.pres.size)*100):null;
   const ult=P.groups[0];
-  return `<section class="card lucr" id="lucrcard" aria-label="Lucrarea Lojii"><div class="label">Lucrarea Lojii · ${PIATRA.AN}</div>
+  return `<section class="card lucr" id="lucrcard" role="button" tabindex="0" aria-label="Lucrarea Lojii – deschide pagina"><div class="label">Lucrarea Lojii · ${PIATRA.AN}</div>
     <div class="lucr-top">${stoneHTML("stone-loja",P.frame,"Piatra Lojii: "+P.treapta)}
       <div><div class="tr">${esc(P.treapta)}</div><div class="n"><b>${P.lov}</b> / ${PIATRA.LOJA} lovituri</div><div class="bar"><i style="width:${Math.min(100,Math.round(P.lov/PIATRA.LOJA*100))}%"></i></div>
       <div class="ult">${ult?`Ultima lovitură: ${esc(groupText(ult))}`:"Prima lovitură vine odată cu prima ținută a anului."}</div></div></div>
@@ -779,6 +798,49 @@ function lucrareCard(){
       <div class="go" role="button" tabindex="0" data-go="calatorii"><div class="label">Vizita anuală</div><div class="v">${P.vizBros}<small> / ${n}</small></div><div class="s">frați ›</div></div>
       <div><div class="label">Planșe</div><div class="v">${P.plates.length}</div><div class="s">în acest an</div></div>
     </div></section>`;
+}
+
+function openLucrare(){
+  const P=M.piatra;if(!P)return;
+  const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label","Lucrarea Lojii");
+  const L=PIATRA.LOJA;
+  const steps=[[Math.ceil(L*.25),"Piatră cioplită"],[Math.ceil(L*.5),"Piatră fasonată"],[Math.ceil(L*.75),"Piatră netezită"],[L,"Piatră cubică"]];
+  const nx=steps.find(x=>P.lov<x[0]);
+  const plus=n=>`<span class="lp-plus">+${n}</span>`;
+  const rec=P.groups.slice(0,10).map(g=>{const d=g.d?fmtShort(g.d):"";let t,s;
+    if(g.kind==="t"){t="Ținuta din "+d;s=nrDe(g.n,"frate prezent","frați prezenți","un")}
+    else if(g.kind==="v"){t="Vizită"+(g.loc?" la "+g.loc:" la o lojă soră");s=nrDe(g.n,"frate","frați","un")}
+    else{t="Planșă";s="în Lojă sau pentru site"}
+    return `<li class="item"><div class="datebox"><b>${g.d?g.d.getDate():"–"}</b><span>${g.d?RO_MONTHS[g.d.getMonth()].slice(0,3):""}</span></div><div><div class="t">${esc(t)}</div><div class="s">${esc(s)}</div></div>${plus(g.w)}</li>`}).join("");
+  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="lclose">Închide</button><h2>Lucrarea Lojii</h2></div></header>
+  <div class="fbody"><div style="max-width:560px;margin:0 auto;padding:0 16px">
+    <div class="lp-hero"><div class="label" style="color:var(--gold)">Piatra Lojii · ${PIATRA.AN}</div>
+      ${stoneHTML("stone-lucr",P.frame,"Piatra Lojii: "+P.treapta)}
+      <div class="tr">${esc(P.treapta)}</div><div class="n"><b>${P.lov}</b> / ${L} lovituri</div>
+      <div class="bar"><i style="width:${Math.min(100,Math.round(P.lov/L*100))}%"></i></div>
+      <div class="nx">${nx?`Până la ${nx[1].toLowerCase()}: încă ${nLov(nx[0]-P.lov)}`:"Piatra Lojii e desăvârșită pentru anul acesta."}</div></div>
+    <div class="sec-title">De unde vin loviturile</div>
+    <div class="lp-src">
+      <div class="card"><div class="label">Ținute</div><div class="v">${P.src.t}</div><div class="s">din ținute</div></div>
+      <div class="card"><div class="label">Vizite</div><div class="v">${P.src.v}</div><div class="s">din ${nrDe(P.src.nv,"vizită","vizite","o")}</div></div>
+      <div class="card"><div class="label">Planșe</div><div class="v">${P.src.p}</div><div class="s">din ${nrDe(P.src.np,"planșă","planșe","o")}</div></div>
+    </div>
+    <div class="sec-title">Cum se șlefuiește</div>
+    <div class="card"><ul class="lp-rules">
+      <li><span>Prezența la o ținută a Lojii</span><b>1 lovitură</b></li>
+      <li><span>Vizita la o lojă soră <span class="small muted">(max. ${PIATRA.VIZ_MAX} pe an)</span></span><b>3 lovituri</b></li>
+      <li><span>Planșa, în Lojă sau pentru site <span class="small muted">(max. ${PIATRA.PL_MAX} pe an)</span></span><b>5 lovituri</b></li>
+    </ul><p class="lp-note">Minutul de regularitate nu intră la planșe. Fiecare frate aduce cel mult ${PIATRA.FULL} de lovituri pietrei Lojii; piatra devine cubică la ${L}. Anul masonic începe din nou la prima ținută a anului.</p></div>
+    <div class="sec-title">Ultimele lovituri</div>
+    ${rec?`<div class="card"><ul class="list">${rec}</ul></div>`:`<div class="state">Încă nicio lovitură în acest an.</div>`}
+    <button class="primary" type="button" id="lmine">Vezi piatra mea</button>
+  </div></div>`;
+  document.body.append(el);document.body.style.overflow="hidden";
+  const close=()=>{el.remove();document.body.style.overflow="";document.removeEventListener("keydown",onKey)};
+  const onKey=k=>{if(k.key==="Escape")close()};document.addEventListener("keydown",onKey);
+  el.querySelector("#lclose").onclick=close;
+  el.querySelector("#lmine").onclick=()=>{close();S.tab="me";render();window.scrollTo(0,0)};
+  stoneMount(el.querySelector("#stone-lucr"),"l216.piatra.loja",true);
 }
 
 function vHome(v){
@@ -819,6 +881,8 @@ function vHome(v){
   h+=`<div class="sec-title">Loja în lume</div><div class="card"><ul class="list">${CONFIG.LINKS.map(([t,sub,url,ic])=>`<li class="item" style="grid-template-columns:1fr"><a class="rowbtn" href="${esc(url)}" target="_blank" rel="noopener"><span class="doci">${svg(ic,18)}</span><span><span class="t" style="display:block">${esc(t)}</span><span class="s">${esc(sub)}</span></span><span class="chev">${svg("ext",16)}</span></a></li>`).join("")}</ul></div>`;
   v.innerHTML=h;
   stoneMount(v.querySelector("#stone-loja"),"l216.piatra.loja",S.viewShown);
+  const lc=v.querySelector("#lucrcard");
+  if(lc){lc.onclick=e=>{if(e.target.closest(".stone,[data-go]"))return;openLucrare()};lc.onkeydown=e=>{if(e.target!==lc)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();openLucrare()}}}
   bindPlans(v);
   v.querySelectorAll("[data-exopen]").forEach(c=>{const go=()=>{const x=M.excursions.find(y=>y.id===c.dataset.exopen);if(x)openExcursion(x)};c.onclick=go;c.onkeydown=k=>{if(k.key==="Enter"||k.key===" "){k.preventDefault();go()}}});
   v.querySelectorAll("[data-go]").forEach(c=>{const go=()=>{S.tab="bros";S.bview=c.dataset.go;render();window.scrollTo(0,0)};c.onclick=go;c.onkeydown=e=>{if(e.key==="Enter")go()}});
@@ -1257,7 +1321,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-02";
+const APP_VERSION="2026.10.19-03";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
