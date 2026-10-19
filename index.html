@@ -682,7 +682,7 @@ function render(){
   const ob=app.querySelector("#outbtn");if(ob)ob.onclick=logout;
   app.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;render();window.scrollTo(0,0)});
   const v=$("#view");
-  if(S.loading){v.innerHTML=`<div class="loading" role="status"><div class="seal" aria-hidden="true"><div class="coin"><img src="logo.png" alt=""><img class="back" src="logo.png" alt=""></div><i class="shadow"></i></div><p class="t">Se încarcă datele lojii…</p><p class="small muted">Prima deschidere după o actualizare a aplicației poate dura mai mult, până la un minut. Vă rugăm nu reîncărcați pagina.</p></div><div class="card"><div class="skel w60"></div><div class="skel"></div><div class="skel w40"></div></div><div class="card"><div class="skel w40"></div><div class="skel"></div></div>`;return}
+  if(S.loading){v.innerHTML=`<div class="loading" role="status"><div class="seal" aria-hidden="true"><div class="coin"><img src="logo.png" alt=""><img class="back" src="logo.png" alt=""></div><i class="shadow"></i></div><p class="t">Se încarcă datele lojii…</p><p class="small muted">Prima deschidere după o actualizare a aplicației poate dura mai mult, până la 15 secunde. Vă rugăm nu reîncărcați pagina.</p></div><div class="card"><div class="skel w60"></div><div class="skel"></div><div class="skel w40"></div></div><div class="card"><div class="skel w40"></div><div class="skel"></div></div>`;return}
   if(S.err.roster&&!M.bros.length){v.innerHTML=accessDenied();return}
   S.viewShown=S.lastView!==S.tab;S.lastView=S.tab;
   ({home:vHome,tinute:vTinute,me:vMe,lib:vLib,bros:vBros})[S.tab](v);
@@ -1368,7 +1368,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-08";
+const APP_VERSION="2026.10.19-09";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
