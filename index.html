@@ -712,11 +712,12 @@ const reduceMotion=()=>{try{return matchMedia("(prefers-reduced-motion: reduce)"
 
 function buildPiatra(){
   const y0=M.dates.length?M.dates[0].d:null;
-  const inYear=d=>!y0||!d||d>=y0;
+  const t0=today();
+  const inYear=d=>(!y0||!d||d>=y0)&&(!d||d<=t0); // fără date din viitor
   const active=new Set(M.bros.map(b=>b.key));
   const ev=[];
   // ținute: 1 lovitură pentru fiecare P
-  M.dates.forEach((x,j)=>M.pres.forEach((v,k)=>{if(v[j]==="P"&&active.has(k))ev.push({d:x.d,k,kind:"t",w:PIATRA.TINUTA,g:"t"+j})}));
+  M.dates.forEach((x,j)=>x.d<=t0&&M.pres.forEach((v,k)=>{if(v[j]==="P"&&active.has(k))ev.push({d:x.d,k,kind:"t",w:PIATRA.TINUTA,g:"t"+j})}));
   // vizite: 3 lovituri, max 3 pe an
   const seenV=new Set();
   M.visits.filter(x=>active.has(x.key)&&inYear(x.d)).forEach(x=>{const id=x.key+"|"+(x.d?x.d.getTime():"")+"|"+norm(x.loja);if(seenV.has(id))return;seenV.add(id);
@@ -1355,7 +1356,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-05";
+const APP_VERSION="2026.10.19-06";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
