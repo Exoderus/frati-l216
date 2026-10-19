@@ -37,7 +37,7 @@ function doPost(e) {
     if (req.action === "bootstrap") logAccess_(who.email, me);
     if (!me) return json_({ error: "not_member", email: who.email });
     if (req.action === "bootstrap") return json_(bootstrap_(me, who.email));
-    if (req.action === "file") return json_(file_(String(req.id || "")));
+    if (req.action === "file") return json_(file_(String(req.id || ""), level_(me.grad)));
     if (req.action === "plan_add") return json_(planAdd_(me, who.email, req));
     if (req.action === "plan_cancel") return json_(planCancel_(who.email, String(req.id || "")));
     return json_({ error: "bad_request" });
@@ -144,17 +144,29 @@ function released_(name) {
 const isTinutaDoc_ = f => /minuta|convocator/i.test(f.name) || /^image\//.test(f.mimeType);
 const HIDDEN_ = () => [CFG.SHEETS.news, CFG.SHEETS.lodges];
 
-function catalog_() {
+/* Acces pe grade: un folder din Bibliotecă al cărui nume conține „Calfă” se vede doar de la gradul de Calfă în sus,
+   unul cu „Maestru” doar de Maeștri. Restul folderelor se văd de toți frații. Gradul vine din „Frați activi”. */
+function level_(grad) {
+  const g = norm_(grad);
+  if (/maestr/.test(g)) return 3;
+  if (/calf/.test(g)) return 2;
+  return 1;
+}
+const folderLevel_ = name => { const n = norm_(name); return /maestr/.test(n) ? 3 : /calf/.test(n) ? 2 : 1; };
+
+function catalog_(level) {
+  level = level || 1;
   const tinuteTop = list_(CFG.FOLDERS.tinute).filter(isTinutaFolder_);
   let tinuteFiles = [];
   tinuteTop.forEach(f => { tinuteFiles = tinuteFiles.concat(list_(f.id).filter(x => x.mimeType !== "application/vnd.google-apps.folder" && isTinutaDoc_(x))); });
   const minutul = list_(CFG.FOLDERS.minutul).filter(x => x.mimeType !== "application/vnd.google-apps.folder" && released_(x.name));
   const libTop = list_(CFG.FOLDERS.library).filter(x => HIDDEN_().indexOf(x.id) < 0);
   let libFiles = [];
-  libTop.filter(x => x.mimeType === "application/vnd.google-apps.folder").forEach(f => { libFiles = libFiles.concat(list_(f.id).filter(x => x.mimeType !== "application/vnd.google-apps.folder")); });
+  libTop.filter(x => x.mimeType === "application/vnd.google-apps.folder" && folderLevel_(x.name) <= level).forEach(f => { libFiles = libFiles.concat(list_(f.id).filter(x => x.mimeType !== "application/vnd.google-apps.folder")); });
   const allowed = [].concat(tinuteFiles, minutul, libTop, libFiles).filter(x => x.mimeType !== "application/vnd.google-apps.folder").map(x => x.id);
-  CacheService.getScriptCache().put("allowed", JSON.stringify(allowed), 21600);
-  return { tinuteTop: tinuteTop, tinuteFiles: tinuteFiles, minutul: minutul, libTop: libTop, libFiles: libFiles };
+  CacheService.getScriptCache().put("allowed_" + level, JSON.stringify(allowed), 21600);
+  const libTopVisible = libTop.filter(x => x.mimeType !== "application/vnd.google-apps.folder" || folderLevel_(x.name) <= level);
+  return { tinuteTop: tinuteTop, tinuteFiles: tinuteFiles, minutul: minutul, libTop: libTopVisible, libFiles: libFiles };
 }
 
 function events_() {
@@ -209,7 +221,7 @@ function bootstrap_(me, email) {
   try { out.excursions = excursions_(); } catch (e) { out.errors.excursions = String(e.message || e); }
   try { out.plans = plans_(email); } catch (e) { out.errors.plans = String(e.message || e); }
   try { out.events = events_(); } catch (e) { out.errors.events = String(e.message || e); }
-  const cat = catalog_();
+  const cat = catalog_(level_(me.grad));
   Object.keys(cat).forEach(k => out[k] = cat[k]);
   return out;
 }
@@ -355,10 +367,11 @@ function planCancel_(email, id) {
 }
 
 /* ---------- fișiere ---------- */
-function file_(id) {
+function file_(id, level) {
   if (!/^[\w-]{10,}$/.test(id)) return { error: "bad_request" };
-  let allowed = JSON.parse(CacheService.getScriptCache().get("allowed") || "null");
-  if (!allowed || allowed.indexOf(id) < 0) { catalog_(); allowed = JSON.parse(CacheService.getScriptCache().get("allowed") || "[]"); }
+  const key = "allowed_" + (level || 1);
+  let allowed = JSON.parse(CacheService.getScriptCache().get(key) || "null");
+  if (!allowed || allowed.indexOf(id) < 0) { catalog_(level); allowed = JSON.parse(CacheService.getScriptCache().get(key) || "[]"); }
   if (allowed.indexOf(id) < 0) return { error: "forbidden" };
   const f = DriveApp.getFileById(id);
   const mime = f.getMimeType();
