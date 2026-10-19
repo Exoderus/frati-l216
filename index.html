@@ -82,6 +82,30 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .big small{font-size:14px;font-weight:500;color:var(--muted)}
 .bar{height:6px;border-radius:3px;background:var(--line);margin-top:8px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--gold);border-radius:3px}
+/* Piatra */
+.lucr>.label{color:var(--gold)}
+.lucr-top{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:center;margin-top:4px}
+.lucr-top .tr{font-family:var(--f-display);font-weight:700;font-size:24px;line-height:1.1}
+.lucr-top .n{font-size:14px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+.lucr-top .n b{color:var(--fg);font-weight:600}
+.lucr-top .ult{font-size:13px;color:var(--muted);margin-top:10px;line-height:1.35}
+.lucr-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.lucr-row>div{min-width:0}
+.lucr-row .v{font-size:20px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums;margin-top:2px}
+.lucr-row .v small{font-size:13px;font-weight:500;color:var(--muted)}
+.lucr-row .s{font-size:12px;color:var(--muted)}
+.lucr-row .go{cursor:pointer;border-radius:8px}
+.lucr-row .go .s{color:var(--gold-ink);font-weight:600}
+.lucr-row .go:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.stone{position:relative;aspect-ratio:1;width:100%;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+.stone:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:12px}
+.stone .si{position:absolute;inset:0;transform-origin:50% 70%}
+.stone img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none}
+.stone .fx{position:absolute;inset:-12%;pointer-events:none;overflow:visible}
+.stone .dust{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(222,208,178,.55) 0%,rgba(222,208,178,.3) 45%,rgba(222,208,178,0) 72%)}
+.stone .chip{position:absolute;width:6px;height:5px;background:#b9ad93;clip-path:polygon(0 30%,55% 0,100% 45%,70% 100%,15% 85%)}
+.stone .halo{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(255,226,160,.55) 0%,rgba(255,214,130,.25) 40%,rgba(255,214,130,0) 70%)}
+@media (max-width:360px){.lucr-top{grid-template-columns:120px minmax(0,1fr)}.lucr-top .tr{font-size:21px}}
 
 /* Lists */
 .list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
@@ -541,6 +565,7 @@ function build(){
   // vizite & planșe
   M.visits=(S.data.visits||[]).filter(r=>r[0]&&r[1]).map(r=>({d:parseDMY(r[0]),key:keyFromFull(r[1]),who:r[1],loja:r[2]||"",orient:r[3]||""}));
   M.plates=(S.data.plates||[]).filter(r=>r[1]&&r[2]).map(r=>({d:parseDMY(r[0]),key:keyFromFull(r[1]),who:r[1],titlu:r[2],unde:r[3]||"",loja:r[4]||"",grad:r[5]||"",tema:r[6]||"",site:r[7]||"",link:r[8]||""}));
+  buildPiatra();
   // documente ținute
   const tFolders=(S.data.tinuteTop||[]).filter(f=>f.mimeType==="application/vnd.google-apps.folder"&&/^tinuta/i.test(norm(f.name)));
   const files=S.data.tinuteFiles||[];
@@ -615,6 +640,7 @@ function render(){
   const v=$("#view");
   if(S.loading){v.innerHTML=`<p class="small muted" style="margin:4px 2px 12px">Se încarcă datele lojii… Prima deschidere poate dura până la un minut. Vă rugăm nu reîncărcați pagina.</p><div class="card"><div class="skel w60"></div><div class="skel"></div><div class="skel w40"></div></div><div class="card"><div class="skel w40"></div><div class="skel"></div></div>`;return}
   if(S.err.roster&&!M.bros.length){v.innerHTML=accessDenied();return}
+  S.viewShown=S.lastView!==S.tab;S.lastView=S.tab;
   ({home:vHome,tinute:vTinute,me:vMe,lib:vLib,bros:vBros})[S.tab](v);
   v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openDoc(b.dataset.open,b.dataset.name,b.dataset.mime,b.dataset.link));
 }
@@ -640,6 +666,121 @@ function docBtn(f,label,sub,icon="doc"){
     <span class="doci">${svg(icon,18)}</span><span><span class="t" style="display:block">${esc(label)}</span>${sub?`<span class="s">${esc(sub)}</span>`:""}</span><span class="chev">${svg("chev",18)}</span></button></li>`;
 }
 
+/* ============ PIATRA ============ */
+const PIATRA={TINUTA:1,VIZ:3,VIZ_MAX:3,PL:5,PL_MAX:2,FULL:24,LOJA:450,TINUTE:19,PRES_MIN:10,AN:"6026–6027"};
+const TREPTE=["Piatră brută","Piatră cioplită","Piatră fasonată","Piatră netezită"];
+const treapta=(r,perfect)=>perfect?"Piatră cubică":TREPTE[r<.25?0:r<.5?1:r<.75?2:3];
+const nrDe=(n,sg,pl,one)=>{const r=n%100;return n===1?one+" "+sg:n+(n>=20&&!(r>=1&&r<=19)?" de ":" ")+pl};
+const nLov=n=>nrDe(n,"lovitură","lovituri","o");
+const fmtShort=d=>{const m=RO_MONTHS[d.getMonth()];return d.getDate()+" "+(m.length<=4?m:m.slice(0,3)+".")};
+const stoneSrc=i=>`piatra/piatra-${String(i).padStart(2,"0")}.webp`;
+const reduceMotion=()=>{try{return matchMedia("(prefers-reduced-motion: reduce)").matches}catch(_){return false}};
+
+function buildPiatra(){
+  const y0=M.dates.length?M.dates[0].d:null;
+  const inYear=d=>!y0||!d||d>=y0;
+  const active=new Set(M.bros.map(b=>b.key));
+  const ev=[];
+  // ținute: 1 lovitură pentru fiecare P
+  M.dates.forEach((x,j)=>M.pres.forEach((v,k)=>{if(v[j]==="P"&&active.has(k))ev.push({d:x.d,k,kind:"t",w:PIATRA.TINUTA,g:"t"+j})}));
+  // vizite: 3 lovituri, max 3 pe an
+  const seenV=new Set();
+  M.visits.filter(x=>active.has(x.key)&&inYear(x.d)).forEach(x=>{const id=x.key+"|"+(x.d?x.d.getTime():"")+"|"+norm(x.loja);if(seenV.has(id))return;seenV.add(id);
+    const loc=String(x.orient||x.loja||"").trim();ev.push({d:x.d||y0,k:x.key,kind:"v",w:PIATRA.VIZ,g:"v"+(x.d?x.d.getTime():"")+"|"+norm(x.loja||loc),loc})});
+  // planșe: 5 lovituri, max 2 pe an; Minutul de regularitate nu e planșă
+  const seenP=new Set();const plates=[];
+  M.plates.filter(x=>active.has(x.key)&&inYear(x.d)&&!/minutul/.test(norm([x.titlu,x.unde,x.grad,x.tema].join(" ")))).forEach(x=>{const id=x.key+"|"+norm(x.titlu);if(seenP.has(id))return;seenP.add(id);plates.push(x);
+    ev.push({d:x.d||y0,k:x.key,kind:"p",w:PIATRA.PL,g:"p"+id})});
+  ev.sort((a,b)=>(a.d||0)-(b.d||0)||"tvp".indexOf(a.kind)-"tvp".indexOf(b.kind));
+  // per frate, cronologic, cu plafoane
+  const per=new Map(M.bros.map(b=>[b.key,{pres:0,viz:0,pl:0,lov:0,loja:0}]));
+  const counted=[];
+  ev.forEach(e=>{const s=per.get(e.k);if(!s)return;
+    if(e.kind==="t")s.pres++;
+    else if(e.kind==="v"){if(s.viz>=PIATRA.VIZ_MAX)return;s.viz++}
+    else{if(s.pl>=PIATRA.PL_MAX)return;s.pl++}
+    s.lov+=e.w;const lw=Math.max(0,Math.min(e.w,PIATRA.FULL-s.loja));s.loja+=lw;counted.push({...e,lw})});
+  per.forEach(s=>{s.perfect=s.lov>=PIATRA.FULL&&s.pres>=PIATRA.PRES_MIN&&s.viz>=1&&s.pl>=1;s.frame=s.perfect?24:Math.min(s.lov,23)});
+  // grupuri de lovituri (fără nume)
+  const gm=new Map();
+  counted.forEach(e=>{let g=gm.get(e.g);if(!g){g={kind:e.kind,d:e.d,loc:e.loc||"",n:0,w:0};gm.set(e.g,g)}g.n++;g.w+=e.lw});
+  const groups=[...gm.values()].filter(g=>g.w>0).sort((a,b)=>(b.d||0)-(a.d||0)||"pvt".indexOf(a.kind)-"pvt".indexOf(b.kind));
+  let lov=0,src={t:0,v:0,p:0,nv:0,np:0};
+  counted.forEach(e=>{lov+=e.lw;src[e.kind]+=e.lw;if(e.kind==="v")src.nv++;if(e.kind==="p")src.np++});
+  const perfect=lov>=PIATRA.LOJA;
+  M.piatra={per,groups,src,plates,lov,perfect,
+    frame:perfect?24:Math.min(23,Math.floor(lov/PIATRA.LOJA*24)),
+    treapta:treapta(lov/PIATRA.LOJA,perfect),
+    vizBros:[...per.values()].filter(s=>s.viz>0).length};
+}
+function groupText(g){
+  const d=g.d?fmtShort(g.d):"";
+  if(g.kind==="t")return `ținuta din ${d} · ${nLov(g.w)}`;
+  if(g.kind==="v")return `vizita ${g.loc?"de la "+g.loc:"la o lojă soră"}${d?" · "+d:""}`;
+  return `o planșă nouă${d?" · "+d:""}`;
+}
+
+function stoneHTML(id,frame,label){
+  return `<div class="stone" id="${id}" role="button" tabindex="0" aria-label="${esc(label)}" data-frame="${frame}"><div class="si"><img alt="" src="${stoneSrc(frame)}" decoding="async" draggable="false"></div><div class="fx"></div></div>`;
+}
+// leagă piatra: atingere = lovitură; la afișare lovitură automată, iar dacă s-a schimbat cadrul de la ultima vizită, noul cadru apare peste cel vechi
+function stoneMount(el,storeKey,auto){
+  if(!el)return;
+  const frame=+el.dataset.frame;let prev=null;
+  try{const v=localStorage.getItem(storeKey);if(v!==null&&/^\d+$/.test(v))prev=+v}catch(_){}
+  try{localStorage.setItem(storeKey,String(frame))}catch(_){}
+  el.onclick=e=>{e.stopPropagation();stoneHit(el,false)};
+  el.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();stoneHit(el,false)}};
+  if(reduceMotion())return;
+  const changed=prev!==null&&prev!==frame&&prev<=24;
+  if(changed){
+    const si=el.querySelector(".si"),img=si.querySelector("img");
+    const old=document.createElement("img");old.alt="";old.src=stoneSrc(prev);old.draggable=false;
+    img.style.opacity="0";si.insertBefore(old,img);
+    const go=()=>{stoneHit(el,frame===24);const a=img.animate([{opacity:0},{opacity:1}],{duration:750,easing:"ease-in-out",fill:"forwards"});a.onfinish=()=>{img.style.opacity="";a.cancel();old.remove()}};
+    Promise.all([img.decode?img.decode().catch(()=>{}):0,old.decode?old.decode().catch(()=>{}):0]).then(()=>setTimeout(go,120));
+  }else if(auto){
+    const img=el.querySelector("img");
+    (img.decode?img.decode().catch(()=>{}):Promise.resolve()).then(()=>setTimeout(()=>stoneHit(el,frame===24),150));
+  }
+}
+function stoneHit(el,halo){
+  if(!el||!el.isConnected||reduceMotion()||!el.animate)return;
+  const si=el.querySelector(".si"),fx=el.querySelector(".fx");
+  si.animate([{transform:"none"},{transform:"translate(1.5px,-1px) rotate(-.5deg)",offset:.2},{transform:"translate(-1px,1px) rotate(.4deg)",offset:.48},{transform:"translate(.5px,0) rotate(-.15deg)",offset:.75},{transform:"none"}],{duration:320,easing:"ease-out"});
+  const W=el.clientWidth||150,F=W*1.24,cx=F*.5+(Math.random()-.5)*W*.12,cy=F*.42,R=Math.random;
+  const add=(cls,css)=>{const n=document.createElement("i");n.className=cls;Object.assign(n.style,css);fx.appendChild(n);return n};
+  // praf de piatră
+  for(let i=0;i<5;i++){const s=W*(.16+R()*.16),x=cx+(R()-.5)*W*.22-s/2,y=cy+(R()-.3)*W*.14-s/2;
+    const n=add("dust",{left:x+"px",top:y+"px",width:s+"px",height:s+"px",opacity:0});
+    const a=n.animate([{transform:"scale(.3)",opacity:.9},{transform:`translate(${(R()-.5)*W*.12}px,${-W*(.04+R()*.08)}px) scale(1.6)`,opacity:0}],{duration:650+R()*250,delay:R()*120,easing:"cubic-bezier(.2,.6,.3,1)",fill:"forwards"});
+    a.onfinish=()=>n.remove()}
+  // așchii, cu gravitație
+  const nc=4+Math.floor(R()*3);
+  for(let i=0;i<nc;i++){const n=add("chip",{left:cx+"px",top:cy+"px",transform:`scale(${.7+R()*.8})`});
+    const vx=(R()-.5)*W*.7,vy=-W*(.12+R()*.22),g=W*.95,rot=(R()-.5)*540,sc=.6+R()*.8,k=[];
+    for(let s=0;s<=8;s++){const t=s/8;k.push({transform:`translate(${vx*t}px,${vy*t+g*t*t}px) rotate(${rot*t}deg) scale(${sc})`,opacity:t<.65?1:1-(t-.65)/.35})}
+    const a=n.animate(k,{duration:620+R()*260,easing:"linear",fill:"forwards"});a.onfinish=()=>n.remove()}
+  if(halo){const h=document.createElement("i");h.className="halo";h.style.opacity="0";el.insertBefore(h,el.firstChild);
+    const a=h.animate([{opacity:0,transform:"scale(.85)"},{opacity:1,transform:"scale(1.04)",offset:.35},{opacity:0,transform:"scale(1.1)"}],{duration:1600,easing:"ease-out",fill:"forwards"});a.onfinish=()=>h.remove()}
+}
+
+function lucrareCard(){
+  const P=M.piatra;if(!P)return "";
+  const n=M.bros.length||1;
+  const lastPct=M.last?Math.round(M.last.c.P/Math.max(1,M.pres.size)*100):null;
+  const ult=P.groups[0];
+  return `<section class="card lucr" id="lucrcard" aria-label="Lucrarea Lojii"><div class="label">Lucrarea Lojii · ${PIATRA.AN}</div>
+    <div class="lucr-top">${stoneHTML("stone-loja",P.frame,"Piatra Lojii: "+P.treapta)}
+      <div><div class="tr">${esc(P.treapta)}</div><div class="n"><b>${P.lov}</b> / ${PIATRA.LOJA} lovituri</div><div class="bar"><i style="width:${Math.min(100,Math.round(P.lov/PIATRA.LOJA*100))}%"></i></div>
+      <div class="ult">${ult?`Ultima lovitură: ${esc(groupText(ult))}`:"Prima lovitură vine odată cu prima ținută a anului."}</div></div></div>
+    <div class="lucr-row">
+      <div><div class="label">Ultima ținută</div><div class="v">${lastPct===null?"–":lastPct+"%"}</div><div class="s">prezență</div></div>
+      <div class="go" role="button" tabindex="0" data-go="calatorii"><div class="label">Vizita anuală</div><div class="v">${P.vizBros}<small> / ${n}</small></div><div class="s">frați ›</div></div>
+      <div><div class="label">Planșe</div><div class="v">${P.plates.length}</div><div class="s">în acest an</div></div>
+    </div></section>`;
+}
+
 function vHome(v){
   const nx=M.next;let h="";
   if(M.news.length){
@@ -659,16 +800,8 @@ function vHome(v){
       <div class="dress" id="agapa" hidden></div>
       <div class="acts"><a class="chipbtn" href="${CONFIG.MAPS_URL}" target="_blank" rel="noopener">${svg("pin",16)}Google Maps</a><a class="chipbtn" href="${CONFIG.WAZE_URL}" target="_blank" rel="noopener">${svg("pin",16)}Waze</a></div></section>`;
   }
-  // pulsul lojii
-  const n=M.bros.length||1;
-  const lastPct=M.last?Math.round(M.last.c.P/Math.max(1,M.pres.size)*100):null;
-  const vis=new Set(M.visits.map(x=>x.key)).size;
-  const pl=new Set(M.plates.map(x=>x.key)).size;
-  h+=`<div class="sec-title">Viața lojii</div><div class="pulse">
-    <div class="card"><div class="label">Ultima ținută</div><div class="big">${lastPct===null?"–":lastPct+"%"}</div><div class="small muted">${M.last?esc(M.last.c.P+" prezenți · "+fmtDM(M.last.d)):"încă fără date"}</div><div class="bar"><i style="width:${lastPct||0}%"></i></div></div>
-    <div class="card go" role="button" tabindex="0" data-go="calatorii"><div class="label">Vizite anuale</div><div class="big">${vis}<small> / ${n}</small></div><div class="small muted">frați cu vizita făcută</div><div class="bar"><i style="width:${Math.round(vis/n*100)}%"></i></div></div>
-    <div class="card"><div class="label">Planșe</div><div class="big">${M.plates.length}</div><div class="small muted">de la ${pl} ${pl===1?"frate":"frați"}</div><div class="bar"><i style="width:${Math.round(pl/n*100)}%"></i></div></div>
-  </div>`;
+  // lucrarea lojii (înlocuiește „Viața lojii”)
+  h+=lucrareCard();
   // excursiile lojii
   if(M.excursions.length){
     h+=`<div class="sec-title">Excursiile lojii</div><div class="excs">${M.excursions.map(x=>{const ps=exPlans(x);const n=ps.length,pp=ps.reduce((a,p)=>a+exPers(p),0);
@@ -685,6 +818,7 @@ function vHome(v){
   }
   h+=`<div class="sec-title">Loja în lume</div><div class="card"><ul class="list">${CONFIG.LINKS.map(([t,sub,url,ic])=>`<li class="item" style="grid-template-columns:1fr"><a class="rowbtn" href="${esc(url)}" target="_blank" rel="noopener"><span class="doci">${svg(ic,18)}</span><span><span class="t" style="display:block">${esc(t)}</span><span class="s">${esc(sub)}</span></span><span class="chev">${svg("ext",16)}</span></a></li>`).join("")}</ul></div>`;
   v.innerHTML=h;
+  stoneMount(v.querySelector("#stone-loja"),"l216.piatra.loja",S.viewShown);
   bindPlans(v);
   v.querySelectorAll("[data-exopen]").forEach(c=>{const go=()=>{const x=M.excursions.find(y=>y.id===c.dataset.exopen);if(x)openExcursion(x)};c.onclick=go;c.onkeydown=k=>{if(k.key==="Enter"||k.key===" "){k.preventDefault();go()}}});
   v.querySelectorAll("[data-go]").forEach(c=>{const go=()=>{S.tab="bros";S.bview=c.dataset.go;render();window.scrollTo(0,0)};c.onclick=go;c.onkeydown=e=>{if(e.key==="Enter")go()}});
@@ -1123,7 +1257,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-01";
+const APP_VERSION="2026.10.19-02";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
