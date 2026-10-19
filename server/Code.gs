@@ -7,6 +7,7 @@
 const CFG = {
   CLIENT_ID: "1081751748144-ch9rep5dusskif6jbh6galtkov55h8i6.apps.googleusercontent.com",
   CALENDAR_ID: "loja.transilvania@gmail.com",
+  NOTIFY: "loja.transilvania@gmail.com", // aici sosesc anunțările de vizite din aplicație
   SHEETS: {
     roster:   "1irr1R_LVlaHtj9NJ5ONQw0xzfcFAgB6JxD5AXTih7ys",
     presence: "1wzgKkQ4UfjfTJy8vcQJg0b0hgIrok-x0S45ozmXTI7I",
@@ -313,6 +314,19 @@ function planAdd_(me, email, req) {
       const row = sh.getLastRow() + 1;
       const now = Utilities.formatDate(new Date(), tz_, "dd.MM.yyyy HH:mm");
       sh.getRange(row, 1, 1, 14).setNumberFormat("@").setValues([[now, me.full, email, dTxt, lojaTxt, orient, escort, car, note, "Anunțată", "", Utilities.getUuid().slice(0, 8), evt, persons]]);
+      notify_("Vizită anunțată: Fr∴ " + me.full + " — " + lojaTxt + (dTxt ? ", " + dTxt : ""), [
+        "Fratele " + me.full + " a anunțat în aplicație:",
+        "",
+        "Unde: " + lojaTxt + (orient ? " (" + orient + ")" : ""),
+        "Data: " + (dTxt || "de stabilit"),
+        persons && persons !== "1" ? "Persoane: " + persons : "",
+        escort ? "Însoțire: " + escort : "",
+        car ? "Mașina: " + car : "",
+        note ? "Mesajul fratelui: " + note : "",
+        "",
+        "Confirmarea se face din coloana Stare a foii „Vizite anunțate”:",
+        "https://docs.google.com/spreadsheets/d/" + CFG.SHEETS.visits + "/edit"
+      ]);
     }
   } finally { lock.releaseLock(); }
   return { ok: true, plans: plans_(email) };
@@ -328,6 +342,14 @@ function planCancel_(email, id) {
     if (!x) return { error: "forbidden" };
     if (norm_(x.r[9]) === "efectuata") return { error: "bad_request", message: "Vizita este deja efectuată." };
     sh.getRange(x.row, 10).setValue("Anulată");
+    notify_("Vizită anulată: Fr∴ " + x.r[1] + " — " + x.r[4] + (x.r[3] ? ", " + x.r[3] : ""), [
+      "Fratele " + x.r[1] + " a anulat din aplicație:",
+      "",
+      "Unde: " + x.r[4] + (x.r[5] ? " (" + x.r[5] + ")" : ""),
+      "Data: " + (x.r[3] || "de stabilit"),
+      "",
+      "https://docs.google.com/spreadsheets/d/" + CFG.SHEETS.visits + "/edit"
+    ]);
   } finally { lock.releaseLock(); }
   return { ok: true, plans: plans_(email) };
 }
@@ -348,8 +370,17 @@ function json_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
 
+/* Notificare pe emailul lojii; nu blochează niciodată aplicația */
+function notify_(subject, lines) {
+  try {
+    MailApp.sendEmail({ to: CFG.NOTIFY, subject: subject, name: "Spațiul fraților",
+      body: lines.filter((l, i, a) => l !== "" || (i > 0 && a[i - 1] !== "")).join("\n") });
+  } catch (e) { /* fără email, anunțarea rămâne în foaie */ }
+}
+
 /** Rulați o dată din editor (▶ autorizeaza) ca să acordați permisiunile. */
 function autorizeaza() {
   rosterRows_(); catalog_(); events_();
+  MailApp.getRemainingDailyQuota(); // cere permisiunea de a trimite emailuri
   Logger.log("Permisiuni acordate. Serviciul este gata.");
 }
