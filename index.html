@@ -232,6 +232,8 @@ a.chipbtn{text-decoration:none}
 .viewer header{background:var(--band);color:var(--band-fg);padding-top:env(safe-area-inset-top,0px)}
 .viewer header .wrap{display:flex;align-items:center;gap:10px;padding-block:10px}
 .viewer header h2{flex:1;min-width:0;margin:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:420px){.vdlt{display:none}}
+.vbtn:disabled{opacity:.6}
 .vbtn{background:transparent;border:1px solid rgb(255 255 255 / .25);color:var(--band-fg);border-radius:10px;height:38px;padding:0 12px;cursor:pointer;font-size:14px;text-decoration:none;display:inline-flex;align-items:center}
 .vbody{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 8px calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:flex-start;gap:10px;background:var(--line)}
 .vpage{margin-inline:auto;background:#fff;box-shadow:0 1px 6px rgb(0 0 0 / .18);max-width:none}
@@ -520,6 +522,7 @@ const IC={
   temple:'<path d="M3 9l9-5 9 5M5 9v9M9.5 9v9M14.5 9v9M19 9v9M3 20h18"/>',
   pin:'<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
   out:'<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
+  dl:'<path d="M12 4v11M7 10l5 5 5-5M5 19h14"/>',
   ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>'
 };
 const svg=(n,s=22,w=1.7)=>`<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
@@ -688,7 +691,7 @@ function render(){
   if(S.err.roster&&!M.bros.length){v.innerHTML=accessDenied();return}
   S.viewShown=S.lastView!==S.tab;S.lastView=S.tab;
   ({home:vHome,tinute:vTinute,me:vMe,lib:vLib,bros:vBros})[S.tab](v);
-  v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openDoc(b.dataset.open,b.dataset.name,b.dataset.mime,b.dataset.link));
+  v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openDoc(b.dataset.open,b.dataset.name,b.dataset.mime,b.dataset.link,b.dataset.dl));
 }
 
 function accessDenied(){
@@ -707,8 +710,8 @@ function errText(e){
 }
 const sectionErr=(k,what)=>S.err[k]?`<div class="state">${esc(what)} nu s-a putut încărca. ${esc(errText(S.err[k]))}</div>`:"";
 
-function docBtn(f,label,sub,icon="doc"){
-  return `<li class="item" style="grid-template-columns:1fr"><button class="rowbtn" type="button" data-open="${esc(f.id)}" data-name="${esc(label)}" data-mime="${esc(f.mimeType)}" data-link="${esc(f.webViewLink||"")}">
+function docBtn(f,label,sub,icon="doc",dl=false){
+  return `<li class="item" style="grid-template-columns:1fr"><button class="rowbtn" type="button" data-open="${esc(f.id)}" data-name="${esc(label)}" data-mime="${esc(f.mimeType)}" data-link="${esc(f.webViewLink||"")}"${dl?` data-dl="${esc(f.name||label)}"`:""}>
     <span class="doci">${svg(icon,18)}</span><span><span class="t" style="display:block">${esc(label)}</span>${sub?`<span class="s">${esc(sub)}</span>`:""}</span><span class="chev">${svg("chev",18)}</span></button></li>`;
 }
 
@@ -1042,7 +1045,7 @@ function vLib(v){
     h+=`<div class="state">Biblioteca e pregătită. Documentele apar aici pe măsură ce Secretarul le adaugă: Regulamentul Intern, ghidul de conduită, planșe de referință, documente MLNR.</div>`;
   }
   M.lib.filter(g=>g.files.length).forEach(g=>{
-    h+=`<div class="sec-title">${esc(g.name)}</div><div class="card"><ul class="list">${g.files.map(f=>docBtn(f,f.name.replace(/\.(pdf|docx?|pptx?|pps|xlsx?)$/i,""),f.modifiedTime?"Actualizat "+new Date(f.modifiedTime).toLocaleDateString("ro-RO"):"",/^image\//.test(f.mimeType)?"img":"doc")).join("")}</ul></div>`;
+    h+=`<div class="sec-title">${esc(g.name)}</div><div class="card"><ul class="list">${g.files.map(f=>docBtn(f,f.name.replace(/\.(pdf|docx?|pptx?|pps|xlsx?)$/i,""),f.modifiedTime?"Actualizat "+new Date(f.modifiedTime).toLocaleDateString("ro-RO"):"",/^image\//.test(f.mimeType)?"img":"doc",true)).join("")}</ul></div>`;
   });
   v.innerHTML=h;
 }
@@ -1281,7 +1284,7 @@ function vLoji(q){
 function fmtTel(t){t=String(t).replace(/\D/g,"");if(t.length===9)t="0"+t;return t.replace(/^(\d{4})(\d{3})(\d{3})$/,"$1 $2 $3")}
 
 /* ============ VIZUALIZARE DOCUMENTE ============ */
-function openDoc(id,name,mime,link){
+function openDoc(id,name,mime,link,dlName){
   const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-label",name);
   const canRender=S.api.mode==="google";
   const isImg=/^image\//.test(mime||"");
@@ -1289,7 +1292,7 @@ function openDoc(id,name,mime,link){
   const isPdfable=/pdf$/.test(mime||"")||/^application\/vnd\.google-apps\.(document|presentation|spreadsheet)/.test(mime||"");
   const body=!canRender?`<div class="fallback"><div><p><strong>${esc(name)}</strong></p><p class="muted small">În aplicația finală documentul se deschide chiar aici, pe tot ecranul.<br>În previzualizare îl poți deschide în Drive.</p>${link?`<p><a href="${esc(link)}" target="_blank" rel="noopener">Deschide în Drive</a></p>`:""}</div></div>`
     :`<div class="vbody" id="vbody"><div class="vmsg">Se deschide documentul…</div></div>`;
-  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="vclose">Închide</button><h2>${esc(name)}</h2>${canRender&&isPdfable?`<button class="vbtn" type="button" id="vzoom" aria-label="Mărește">100%</button>`:""}</div></header>${body}`;
+  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="vclose">Închide</button><h2>${esc(name)}</h2>${canRender&&dlName?`<button class="vbtn" type="button" id="vdl" aria-label="Descarcă documentul">${svg("dl",18)}<span class="vdlt">&nbsp;Descarcă</span></button>`:""}${canRender&&isPdfable?`<button class="vbtn" type="button" id="vzoom" aria-label="Mărește">100%</button>`:""}</div></header>${body}`;
   document.body.append(el);document.body.style.overflow="hidden";
   let urls=[],alive=true;
   const close=()=>{alive=false;urls.forEach(u=>URL.revokeObjectURL(u));el.remove();document.body.style.overflow=""};
@@ -1298,9 +1301,28 @@ function openDoc(id,name,mime,link){
   el.querySelector("#vclose").focus();
   if(!canRender)return;
   const box=el.querySelector("#vbody");
+  let got=null;const getBlob=()=>got||(got=S.api.file(id,mime).catch(e=>{got=null;throw e}));
+  const db=el.querySelector("#vdl");
+  if(db)db.onclick=async()=>{
+    const old=db.innerHTML;db.disabled=true;db.innerHTML="Se pregătește…";
+    try{
+      const blob=await getBlob();
+      const ext=/pdf/.test(blob.type)?".pdf":/wordprocessingml/.test(blob.type)?".docx":"";
+      let fn=String(dlName).replace(/[\\/:*?"<>|]+/g," ").trim()||"document";
+      if(ext&&!fn.toLowerCase().endsWith(ext))fn=fn.replace(/\.(pdf|docx?)$/i,"")+ext;
+      const file=new File([blob],fn,{type:blob.type||"application/octet-stream"});
+      const touch=matchMedia("(pointer:coarse)").matches;
+      if(touch&&navigator.canShare&&navigator.canShare({files:[file]})){
+        try{await navigator.share({files:[file],title:fn})}catch(e){if(e&&e.name!=="AbortError")throw e}
+      }else{
+        const u=URL.createObjectURL(file);const a=document.createElement("a");a.href=u;a.download=fn;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }
+    }catch(e){alert("Documentul nu s-a putut descărca. Verifică conexiunea și încearcă din nou.")}
+    finally{db.disabled=false;db.innerHTML=old}
+  };
   const fail=msg=>{box.innerHTML=`<div class="vmsg"><p>${esc(msg)}</p>${link?`<p><a href="${esc(link)}" target="_blank" rel="noopener">Deschide în Drive</a></p>`:""}</div>`};
   if(!isImg&&!isPdfable&&!isDocx){fail("Acest tip de fișier nu poate fi afișat în aplicație.");return}
-  S.api.file(id,mime).then(async blob=>{
+  getBlob().then(async blob=>{
     if(!alive)return;
     if(isImg){const u=URL.createObjectURL(blob);urls.push(u);box.innerHTML=`<img class="vimg" src="${u}" alt="${esc(name)}">`;return}
     if(isDocx){const m=await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js","mammoth");const r=await m.convertToHtml({arrayBuffer:await blob.arrayBuffer()});if(!alive)return;box.innerHTML=`<article class="vdoc">${r.value}</article>`;return}
@@ -1370,7 +1392,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-10";
+const APP_VERSION="2026.10.19-11";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
