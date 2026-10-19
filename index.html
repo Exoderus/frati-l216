@@ -58,6 +58,7 @@ a{color:var(--gold-ink)}
 
 main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0px))}
 .view{display:flex;flex-direction:column;gap:14px}
+.fold{padding:0;margin-top:12px}.fold>summary{list-style:none;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 16px;cursor:pointer}.fold>summary::-webkit-details-marker{display:none}.fold>summary .t{display:block;font-weight:600}.fold>summary .s{font-size:13px;opacity:.7}.fold>summary .chev{transition:transform .2s}.fold[open]>summary .chev{transform:rotate(90deg)}.fold>.list{padding:0 8px 8px}.fold>.list,.fold>.fold-sub{border-top:1px solid var(--line,rgba(127,127,127,.18))}.fold-sub{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.65;padding:12px 16px 4px}.fold-sub+.list{border-top:0;padding:0 8px 8px}
 .sec-title{font-family:var(--f-display);font-weight:700;font-size:22px;margin:8px 0 -4px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
 .card h3{margin:0 0 6px;font-size:15px;font-weight:600}
@@ -650,9 +651,20 @@ function build(){
   const groups=[];
   const loose=top.filter(f=>f.mimeType!=="application/vnd.google-apps.folder"&&f.id!==CONFIG.SHEETS.news&&f.id!==CONFIG.SHEETS.lodges);
   if(loose.length)groups.push({name:"Documente",files:loose});
-  top.filter(f=>f.mimeType==="application/vnd.google-apps.folder").forEach(g=>{
-    const fs=sub.filter(x=>x.parent===g.id&&x.mimeType!=="application/vnd.google-apps.folder");
-    groups.push({name:g.name.replace(/^\d+[\.\s-]*/,""),files:fs});
+  const byName=(a,b)=>a.name.localeCompare(b.name,"ro",{numeric:true});
+  const num=n=>{const m=/^(\d+)/.exec(n);return m?+m[1]:999};
+  let audio=null;
+  top.filter(f=>f.mimeType==="application/vnd.google-apps.folder").sort((a,b)=>num(a.name)-num(b.name)||byName(a,b)).forEach(g=>{
+    const fs=sub.filter(x=>x.parent===g.id&&x.mimeType!=="application/vnd.google-apps.folder").sort(byName);
+    const name=g.name.replace(/^\d+[\.\s-]*/,"");
+    if(/^audio/i.test(name)){
+      // toate piesele audio stau într-un singur dosar, pe subsecțiuni
+      if(!audio){audio={name:"Audio pentru ținute",files:[],subs:[]};groups.push(audio)}
+      const rest=name.replace(/^audio pentru ținute\s*[–-]?\s*/i,"");
+      audio.subs.push({name:rest?cap(rest):"Pentru toți frații",files:fs,all:!rest});
+      audio.subs.sort((a,b)=>(b.all?1:0)-(a.all?1:0));
+      audio.files=audio.subs.flatMap(x=>x.files);
+    }else groups.push({name,files:fs});
   });
   M.lib=groups;
   // loji
@@ -1049,8 +1061,11 @@ function vLib(v){
   if(!S.err.libTop&&!M.lib.some(g=>g.files.length)){
     h+=`<div class="state">Biblioteca e pregătită. Documentele apar aici pe măsură ce Secretarul le adaugă: Regulamentul Intern, ghidul de conduită, planșe de referință, documente MLNR.</div>`;
   }
+  const li=fs=>`<ul class="list">${fs.map(f=>docBtn(f,f.name.replace(/\.(pdf|docx?|pptx?|pps|xlsx?|mp3|m4a|wav|ogg)$/i,""),f.modifiedTime?"Actualizat "+new Date(f.modifiedTime).toLocaleDateString("ro-RO"):"",/^image\//.test(f.mimeType)?"img":/^audio\//.test(f.mimeType)?"audio":"doc",true)).join("")}</ul>`;
+  const n=k=>`${k} ${k===1?"document":"documente"}`;
   M.lib.filter(g=>g.files.length).forEach(g=>{
-    h+=`<div class="sec-title">${esc(g.name)}</div><div class="card"><ul class="list">${g.files.map(f=>docBtn(f,f.name.replace(/\.(pdf|docx?|pptx?|pps|xlsx?|mp3|m4a|wav|ogg)$/i,""),f.modifiedTime?"Actualizat "+new Date(f.modifiedTime).toLocaleDateString("ro-RO"):"",/^image\//.test(f.mimeType)?"img":/^audio\//.test(f.mimeType)?"audio":"doc",true)).join("")}</ul></div>`;
+    const body=g.subs?g.subs.filter(x=>x.files.length).map(x=>`<div class="fold-sub">${esc(x.name)}</div>${li(x.files)}`).join(""):li(g.files);
+    h+=`<details class="card fold"><summary><span class="doci">${svg(g.subs?"audio":"doc",18)}</span><span><span class="t">${esc(g.name)}</span><span class="s">${g.subs?`${g.files.length} ${g.files.length===1?"piesă":"piese"}`:n(g.files.length)}</span></span><span class="chev">${svg("chev",16)}</span></summary>${body}</details>`;
   });
   v.innerHTML=h;
 }
@@ -1399,7 +1414,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-12";
+const APP_VERSION="2026.10.19-13";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
