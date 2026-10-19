@@ -9,7 +9,8 @@ Macheta aprobată: artifactul „Piatra – machetă” (claude.ai), planșele A
 - 0–23 = șlefuire progresivă, sigiliul apare în relief bucată cu bucată; **24 = piatra cubică perfectă**.
 - Se încarcă doar cadrul curent (și următorul la animație).
 
-## Reguli (an masonic, se resetează la prima ținută a anului; anul curent 6026–6027, 19 ținute regulare)
+## Reguli (an masonic, începe la **1 septembrie** și se resetează la 1 septembrie următor; anul curent 6026–6027, 19 ținute regulare)
+Se numără doar evenimentele cu data de azi sau mai veche (marcajele P puse dinainte la o ținută viitoare nu contează până în ziua ținutei).
 Lovituri de ciocan pentru un frate:
 - prezent (P) la o ținută a Lojii: **1** (din Registrul de prezență)
 - vizită la o lojă soră: **3**, max. **3 vizite** numărate pe an (Registrul vizitelor)

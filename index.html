@@ -711,7 +711,9 @@ const stoneSrc=i=>`piatra/piatra-${String(i).padStart(2,"0")}.webp`;
 const reduceMotion=()=>{try{return matchMedia("(prefers-reduced-motion: reduce)").matches}catch(_){return false}};
 
 function buildPiatra(){
-  const y0=M.dates.length?M.dates[0].d:null;
+  // anul masonic începe la 1 septembrie (anul primei ținute din registru)
+  const ref=M.dates.length?M.dates[0].d:today();
+  const y0=new Date(ref.getMonth()>=8?ref.getFullYear():ref.getFullYear()-1,8,1);
   const t0=today();
   const inYear=d=>(!y0||!d||d>=y0)&&(!d||d<=t0); // fără date din viitor
   const active=new Set(M.bros.map(b=>b.key));
@@ -872,7 +874,7 @@ function openLucrare(){
       <li><span>Prezența la o ținută a Lojii</span><b>1 lovitură</b></li>
       <li><span>Vizita la o lojă soră <span class="small muted">(max. ${PIATRA.VIZ_MAX} pe an)</span></span><b>3 lovituri</b></li>
       <li><span>Planșa, în Lojă sau pentru site <span class="small muted">(max. ${PIATRA.PL_MAX} pe an)</span></span><b>5 lovituri</b></li>
-    </ul><p class="lp-note">Minutul de regularitate nu intră la planșe. Fiecare frate aduce cel mult ${PIATRA.FULL} de lovituri pietrei Lojii; piatra devine cubică la ${L}. Anul masonic începe din nou la prima ținută a anului.</p></div>
+    </ul><p class="lp-note">Minutul de regularitate nu intră la planșe. Fiecare frate aduce cel mult ${PIATRA.FULL} de lovituri pietrei Lojii; piatra devine cubică la ${L}. Anul masonic începe din nou la 1 septembrie.</p></div>
     <div class="sec-title">Ultimele lovituri</div>
     ${rec?`<div class="card"><ul class="list">${rec}</ul></div>`:`<div class="state">Încă nicio lovitură în acest an.</div>`}
     <button class="primary" type="button" id="lmine">Vezi piatra mea</button>
@@ -1356,7 +1358,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-06";
+const APP_VERSION="2026.10.19-07";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
