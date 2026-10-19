@@ -86,6 +86,16 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .lucr{cursor:pointer}
 .lucr:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .lucr>.label{color:var(--gold)}
+.loading{text-align:center;padding:28px 12px 18px}
+.loading .seal{position:relative;width:96px;height:112px;margin:0 auto 14px;perspective:600px}
+.loading .coin{position:relative;width:96px;height:96px;transform-style:preserve-3d;animation:coin 3.2s cubic-bezier(.45,0,.55,1) infinite}
+.loading .coin img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;backface-visibility:hidden;-webkit-backface-visibility:hidden;box-shadow:0 0 0 1px rgb(165 128 43 / .35)}
+.loading .coin img.back{transform:rotateY(180deg)}
+.loading .shadow{position:absolute;left:50%;bottom:0;width:70px;height:10px;margin-left:-35px;border-radius:50%;background:radial-gradient(closest-side,rgb(0 0 0 / .28),transparent);animation:coinshadow 3.2s cubic-bezier(.45,0,.55,1) infinite}
+.loading .t{font-family:var(--f-display);font-weight:700;font-size:22px;margin:0 0 6px}
+.loading .small{max-width:320px;margin:0 auto}
+@keyframes coin{0%{transform:rotateY(0)}100%{transform:rotateY(360deg)}}
+@keyframes coinshadow{0%,50%,100%{transform:scaleX(1);opacity:1}25%,75%{transform:scaleX(.35);opacity:.6}}
 .lp-hero{text-align:center;padding:4px 0 6px}
 .lp-hero .stone{width:min(270px,72vw);margin:0 auto}
 .lp-hero .tr{font-family:var(--f-display);font-weight:700;font-size:30px;line-height:1.1;margin-top:6px}
@@ -672,7 +682,7 @@ function render(){
   const ob=app.querySelector("#outbtn");if(ob)ob.onclick=logout;
   app.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;render();window.scrollTo(0,0)});
   const v=$("#view");
-  if(S.loading){v.innerHTML=`<p class="small muted" style="margin:4px 2px 12px">Se încarcă datele lojii… Prima deschidere poate dura până la un minut. Vă rugăm nu reîncărcați pagina.</p><div class="card"><div class="skel w60"></div><div class="skel"></div><div class="skel w40"></div></div><div class="card"><div class="skel w40"></div><div class="skel"></div></div>`;return}
+  if(S.loading){v.innerHTML=`<div class="loading" role="status"><div class="seal" aria-hidden="true"><div class="coin"><img src="logo.png" alt=""><img class="back" src="logo.png" alt=""></div><i class="shadow"></i></div><p class="t">Se încarcă datele lojii…</p><p class="small muted">Prima deschidere după o actualizare a aplicației poate dura mai mult, până la un minut. Vă rugăm nu reîncărcați pagina.</p></div><div class="card"><div class="skel w60"></div><div class="skel"></div><div class="skel w40"></div></div><div class="card"><div class="skel w40"></div><div class="skel"></div></div>`;return}
   if(S.err.roster&&!M.bros.length){v.innerHTML=accessDenied();return}
   S.viewShown=S.lastView!==S.tab;S.lastView=S.tab;
   ({home:vHome,tinute:vTinute,me:vMe,lib:vLib,bros:vBros})[S.tab](v);
@@ -1358,7 +1368,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.19-07";
+const APP_VERSION="2026.10.19-08";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
