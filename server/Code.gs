@@ -15,7 +15,8 @@ const CFG = {
     plates:   "1YqHYz7_W6Yjw8m1BTzgWd1uvK5-zrAgMz6IX3NQ2rPQ",
     lodges:   "1Etk_aEJ_3PKXdCgPt7T21v9jKtfAYchN_8BHHJK-4c0",
     matricol: "1wahZJvhNIMfh10GCw47xhRPvxUfVSDCX8y5O3Swuark",
-    news:     "1Lo_7AdiMoOA6li6yo2e62JbIVjwzTJ3PausRyohLjBQ"
+    news:     "1Lo_7AdiMoOA6li6yo2e62JbIVjwzTJ3PausRyohLjBQ",
+    widow:    "16TcMEn5ZY5x1qB75iM3ss4BUet44p-l38bDdpKAr1Lk"
   },
   FOLDERS: {
     tinute:  "12BoNMqN_mRn1tMZ4FvrPAPq3PnNM6HeT",
@@ -222,6 +223,41 @@ function fisa_(key) {
   } catch (e) { return null; }
 }
 
+/* Trunchiul vaduvei, informativ pana la adoptarea hotararii.
+   Se transmite DOAR randul fratelui autentificat si totalurile generale.
+   Datele nominale ale altor frati nu intra niciodata in raspunsul API. */
+function widowFund_(me) {
+  const sh = SpreadsheetApp.openById(CFG.SHEETS.widow).getSheetByName("Situatie");
+  if (!sh) throw new Error("missing_widow_sheet");
+  const rows = sh.getRange("A3:J200").getDisplayValues();
+  const totals = rows[0] || [];
+  // Registrul financiar foloseste "Nume Prenume"; cel al membrilor activi
+  // poate include prenume suplimentare. Asociem doar pe cheia deja folosita
+  // de aplicatie: nume + primul prenume, cu potrivire exacta si unica.
+  const matches = rows.slice(2).filter(r => {
+    if (!r[1]) return false;
+    const words = norm_(r[1]).split(/\s+/).filter(Boolean);
+    return words.length >= 2 && words[0] + "|" + words[1] === me.key;
+  });
+  const own = matches.length === 1 ? matches[0] : null;
+  return {
+    year: "6026–6027",
+    adopted: false,
+    general: {
+      calculated: totals[6] || "0",
+      contributed: totals[7] || "0",
+      difference: totals[8] || "0"
+    },
+    mine: own ? {
+      taxedMeetings: own[5] || "0",
+      calculated: own[6] || "—",
+      contributed: own[7] || "—",
+      difference: own[8] || "—",
+      status: own[9] || "—"
+    } : null
+  };
+}
+
 /* Masuratori anonime, exclusiv in jurnalul Apps Script; schema raspunsului nu se schimba. */
 function bootstrapTimed_(stage, fn, metrics) {
   const started = Date.now();
@@ -253,6 +289,7 @@ function bootstrap_(me, email) {
       plates: plates,
       lodges: lodges,
       news: news,
+      widow: null,
       events: [],
       plans: [],
       excursions: [],
@@ -264,6 +301,8 @@ function bootstrap_(me, email) {
     catch (e) { out.errors.plans = String(e.message || e); }
     try { out.events = bootstrapTimed_("calendar", () => sharedCached_("calendar", 300, () => events_()), metrics); }
     catch (e) { out.errors.events = String(e.message || e); }
+    try { out.widow = bootstrapTimed_("widow_fund", () => widowFund_(me), metrics); }
+    catch (_) { out.errors.widow = "unavailable"; }
     const cat = bootstrapTimed_("drive_catalog", () => catalogCached_(level_(me.grad)), metrics);
     Object.keys(cat).forEach(k => out[k] = cat[k]);
     return out;
