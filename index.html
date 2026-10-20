@@ -479,7 +479,10 @@ const AUTH_KEY="l216.auth", HINT_KEY="l216.hint", STATE_KEY="l216.state";
 const SCOPES="openid email";
 const NONCE_KEY="l216.nonce";
 function jwtPayload(t){try{const b=t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");return JSON.parse(decodeURIComponent(escape(atob(b+"===".slice((b.length+3)%4)))))}catch(_){return null}}
-const store={get(k){try{return localStorage.getItem(k)}catch(_){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(_){}},del(k){try{localStorage.removeItem(k)}catch(_){}}};
+// Token numai in sesiunea browserului; hintul de cont ramane persistent.
+const store={get(k){try{return (k===AUTH_KEY?sessionStorage:localStorage).getItem(k)}catch(_){return null}},set(k,v){try{(k===AUTH_KEY?sessionStorage:localStorage).setItem(k,v)}catch(_){ }},del(k){try{sessionStorage.removeItem(k)}catch(_){ }try{localStorage.removeItem(k)}catch(_){ }}};
+function clearLegacyPersistentData(){try{localStorage.removeItem(AUTH_KEY);Object.keys(localStorage).filter(k=>k.indexOf("l216.cache.")===0).forEach(k=>localStorage.removeItem(k))}catch(_){}}
+
 function savedToken(){try{const a=JSON.parse(store.get(AUTH_KEY)||"null");if(a&&a.exp>Date.now()+60000)return a.token}catch(_){}return null}
 function redirectUri(){return location.origin+location.pathname}
 function startLogin(silent){
@@ -507,7 +510,7 @@ function consumeRedirect(){
   store.set(AUTH_KEY,JSON.stringify({token,exp}));
   return {token};
 }
-function logout(){try{Object.keys(localStorage).filter(k=>k.indexOf("l216.")===0).forEach(k=>localStorage.removeItem(k))}catch(_){}location.reload()}
+function logout(){for(const storage of [localStorage,sessionStorage]){try{Object.keys(storage).filter(k=>k.indexOf("l216.")===0).forEach(k=>storage.removeItem(k))}catch(_){}}location.reload()}
 
 /* ============ ICONIȚE ============ */
 const IC={
@@ -553,16 +556,16 @@ async function loadAll(){
       if(!CONFIG.SHOW_NEWS)S.data.news=[];
       if(d.me){S.me.key=d.me.key;S.me.fisa=d.me.fisa||null}
     };
-    // 1) afișare imediată din ultima versiune salvată pe acest dispozitiv
-    let cached=null;try{cached=JSON.parse(localStorage.getItem(CK)||"null")}catch(_){}
+    // Cache temporar per tab: cel mult cinci minute si doar pentru acelasi cont.
+    let cached=null;try{const entry=JSON.parse(sessionStorage.getItem(CK)||"null");if(entry&&entry.time&&Date.now()-entry.time<300000&&entry.data&&entry.data.me&&entry.data.me.email===S.me.email)cached=entry.data;else sessionStorage.removeItem(CK)}catch(_){}
     if(cached){apply(cached);S.loading=false;build()}
-    // 2) date proaspete în fundal
+    // Date proaspete in fundal; serverul reverifica drepturile.
     try{
       const d=await A.bootstrap();
-      apply(d);try{localStorage.setItem(CK,JSON.stringify(d))}catch(_){}
+      apply(d);try{sessionStorage.setItem(CK,JSON.stringify({time:Date.now(),data:d}))}catch(_){}
     }catch(e){
-      if(e.status===401){store.del(AUTH_KEY);startLogin(true);return}
-      if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
+      if(e.status===401){store.del(AUTH_KEY);try{sessionStorage.removeItem(CK)}catch(_){}startLogin(true);return}
+      if(e.status===403){try{sessionStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
       else if(!cached)S.err.roster=e;
     }
     S.loading=false;build();return;
@@ -1398,6 +1401,7 @@ async function boot(){
   let mcp=null;
   if(window.claude&&typeof window.claude.use==="function"){try{mcp=await window.claude.use("mcp")}catch(_){mcp=null}}
   if(mcp){S.api=mcpAdapter(mcp);S.me=await S.api.me();render();loadAll();return}
+  clearLegacyPersistentData();
   // 2) aplicația reală, cu autentificare Google
   if(!CONFIG.CLIENT_ID){$("#app").innerHTML=`<div class="wrap" style="padding-block:40px"><div class="state err">Aplicația nu e încă configurată: lipsește identificatorul Google (CLIENT_ID).</div></div>`;return}
   const r=consumeRedirect();
@@ -1416,7 +1420,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-01";
+const APP_VERSION="2026.10.20-02";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
