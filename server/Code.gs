@@ -164,11 +164,34 @@ function catalog_(level) {
   let libFiles = [];
   libTop.filter(x => x.mimeType === "application/vnd.google-apps.folder" && folderLevel_(x.name) <= level).forEach(f => { libFiles = libFiles.concat(list_(f.id).filter(x => x.mimeType !== "application/vnd.google-apps.folder")); });
   const allowed = [].concat(tinuteFiles, minutul, libTop, libFiles).filter(x => x.mimeType !== "application/vnd.google-apps.folder").map(x => x.id);
-  CacheService.getScriptCache().put("allowed_" + level, JSON.stringify(allowed), 21600);
+  // Autorizarea de scurta durata se construieste in catalogCached_.
   const libTopVisible = libTop.filter(x => x.mimeType !== "application/vnd.google-apps.folder" || folderLevel_(x.name) <= level);
   return { tinuteTop: tinuteTop, tinuteFiles: tinuteFiles, minutul: minutul, libTop: libTopVisible, libFiles: libFiles };
 }
 
+/* Cache doar pentru date comune. Continutul mare sau erorile cad inapoi la citirea directa. */
+function sharedCached_(key, ttl, fn) {
+  const cache = CacheService.getScriptCache();
+  try {
+    const hit = cache.get("sh1_" + key);
+    if (hit !== null) return JSON.parse(hit);
+  } catch (_) {}
+  const value = fn();
+  try {
+    const json = JSON.stringify(value);
+    if (json.length < 45000) cache.put("sh1_" + key, json, ttl);
+  } catch (_) {}
+  return value;
+}
+function catalogCached_(level) {
+  level = level || 1;
+  const cat = sharedCached_("catalog_" + level, 300, () => catalog_(level));
+  return cat;
+}
+function catalogAllowedIds_(cat) {
+  return [].concat(cat.tinuteFiles || [], cat.minutul || [], cat.libTop || [], cat.libFiles || [])
+    .filter(f => f.mimeType !== "application/vnd.google-apps.folder").map(f => f.id);
+}
 function events_() {
   const cal = CalendarApp.getCalendarById(CFG.CALENDAR_ID);
   if (!cal) return [];
@@ -199,31 +222,65 @@ function fisa_(key) {
   } catch (e) { return null; }
 }
 
+/* Masuratori anonime, exclusiv in jurnalul Apps Script; schema raspunsului nu se schimba. */
+function bootstrapTimed_(stage, fn, metrics) {
+  const started = Date.now();
+  try { return fn(); }
+  finally { metrics.push([stage, Date.now() - started]); }
+}
+
 function bootstrap_(me, email) {
-  // registrul fraților: doar ce afișează aplicația (fără telefoane, e-mailuri, anul nașterii)
-  const roster = rosterRows_().map(r => {
-    const b = /^(\d{1,2})\.(\d{1,2})\./.exec(r[3]);
-    return [r[0], r[1], r[2], b ? b[1] + "." + b[2] + ".2000" : "", r[4], r[5], "", "", "", "", "", r[11]];
-  });
-  const out = {
-    me: { email: email, key: me.key, fisa: fisa_(me.key) },
-    roster: roster,
-    presence: SpreadsheetApp.openById(CFG.SHEETS.presence).getSheetByName("Registru prezență").getRange("A5:AZ200").getDisplayValues(),
-    visits: values_(CFG.SHEETS.visits, "A5:E1000", "Vizite"),
-    plates: values_(CFG.SHEETS.plates, "A5:J1000", "Planșe"),
-    lodges: values_(CFG.SHEETS.lodges, "A2:J100"),
-    news: values_(CFG.SHEETS.news, "A2:E300"),
-    events: [],
-    plans: [],
-    excursions: [],
-    errors: {}
-  };
-  try { out.excursions = excursions_(); } catch (e) { out.errors.excursions = String(e.message || e); }
-  try { out.plans = plans_(email); } catch (e) { out.errors.plans = String(e.message || e); }
-  try { out.events = events_(); } catch (e) { out.errors.events = String(e.message || e); }
-  const cat = catalog_(level_(me.grad));
-  Object.keys(cat).forEach(k => out[k] = cat[k]);
-  return out;
+  const started = Date.now();
+  const metrics = [];
+  let status = "ok";
+  try {
+    // Aceleasi citiri si aceeasi ordine ca in versiunea functionala.
+    const roster = bootstrapTimed_("roster", () => rosterRows_().map(r => {
+      const b = /^(\d{1,2})\.(\d{1,2})\./.exec(r[3]);
+      return [r[0], r[1], r[2], b ? b[1] + "." + b[2] + ".2000" : "", r[4], r[5], "", "", "", "", "", r[11]];
+    }), metrics);
+    const fisa = bootstrapTimed_("member_profile", () => fisa_(me.key), metrics);
+    const presence = bootstrapTimed_("presence", () => sharedCached_("presence", 120, () => SpreadsheetApp.openById(CFG.SHEETS.presence).getSheetByName("Registru prezență").getRange("A5:AZ200").getDisplayValues()), metrics);
+    const visits = bootstrapTimed_("visits", () => sharedCached_("visits", 120, () => values_(CFG.SHEETS.visits, "A5:E1000", "Vizite")), metrics);
+    const plates = bootstrapTimed_("plates", () => sharedCached_("plates", 120, () => values_(CFG.SHEETS.plates, "A5:J1000", "Planșe")), metrics);
+    const lodges = bootstrapTimed_("lodges", () => sharedCached_("lodges", 1800, () => values_(CFG.SHEETS.lodges, "A2:J100")), metrics);
+    const news = bootstrapTimed_("news", () => sharedCached_("news", 300, () => values_(CFG.SHEETS.news, "A2:E300")), metrics);
+    const out = {
+      me: { email: email, key: me.key, fisa: fisa },
+      roster: roster,
+      presence: presence,
+      visits: visits,
+      plates: plates,
+      lodges: lodges,
+      news: news,
+      events: [],
+      plans: [],
+      excursions: [],
+      errors: {}
+    };
+    try { out.excursions = bootstrapTimed_("excursions", () => sharedCached_("excursions", 120, () => excursions_()), metrics); }
+    catch (e) { out.errors.excursions = String(e.message || e); }
+    try { out.plans = bootstrapTimed_("plans", () => plans_(email), metrics); }
+    catch (e) { out.errors.plans = String(e.message || e); }
+    try { out.events = bootstrapTimed_("calendar", () => sharedCached_("calendar", 300, () => events_()), metrics); }
+    catch (e) { out.errors.events = String(e.message || e); }
+    const cat = bootstrapTimed_("drive_catalog", () => catalogCached_(level_(me.grad)), metrics);
+    Object.keys(cat).forEach(k => out[k] = cat[k]);
+    return out;
+  } catch (e) {
+    status = "error";
+    throw e;
+  } finally {
+    // Nu scrie e-mailuri, nume, tokenuri, ID-uri de documente sau date din registre.
+    try {
+      console.log(JSON.stringify({
+        kind: "bootstrap_performance",
+        status: status,
+        total_ms: Date.now() - started,
+        stages_ms: Object.fromEntries(metrics)
+      }));
+    } catch (_) { /* masurarea nu intrerupe aplicatia */ }
+  }
 }
 
 /* ---------- vizite anunțate („Cine mai merge?”) ----------
@@ -369,9 +426,8 @@ function planCancel_(email, id) {
 /* ---------- fișiere ---------- */
 function file_(id, level) {
   if (!/^[\w-]{10,}$/.test(id)) return { error: "bad_request" };
-  const key = "allowed_" + (level || 1);
-  let allowed = JSON.parse(CacheService.getScriptCache().get(key) || "null");
-  if (!allowed || allowed.indexOf(id) < 0) { catalog_(level); allowed = JSON.parse(CacheService.getScriptCache().get(key) || "[]"); }
+  // Controlul de grad ramane per solicitare in member_(). Catalogul are TTL 5 minute.
+  const allowed = catalogAllowedIds_(catalogCached_(level));
   if (allowed.indexOf(id) < 0) return { error: "forbidden" };
   const f = DriveApp.getFileById(id);
   const mime = f.getMimeType();
