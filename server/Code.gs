@@ -431,7 +431,9 @@ function paymentAdd_(me,email,req) {
   if(!Number.isFinite(amount)||amount<=0||amount>1000000||Math.abs(Math.round(amount*100)-amount*100)>1e-6)return {error:"bad_request"};
   const method=String(req.method||"Numerar");
   if(["Numerar","Transfer bancar"].indexOf(method)<0)return {error:"bad_request"};
-  const roster=rosterRows_().filter(r=>norm_(r[12])==="activ"&&key_(r[1],r[2])===key);
+  // Plata se poate primi de la orice frate înscris în registru, chiar dacă
+  // nu și-a activat încă accesul la aplicație; operatorul rămâne autorizat separat.
+  const roster=rosterRows_().filter(r=>key_(r[1],r[2])===key);
   if(roster.length!==1)return {error:"bad_request"};
   const name=roster[0][1]+" "+String(roster[0][2]).trim();
   const lock=LockService.getScriptLock();if(!lock.tryLock(15000))return {error:"server",message:"Operațiune în curs, reîncearcă."};
