@@ -1303,12 +1303,21 @@ function vAdmin(v){
         btn.disabled=true;msg.textContent="Se înregistrează plata…";
         try{
           await S.api.paymentAdd(pending);
-          msg.textContent="Plata a fost înregistrată.";
-          pending=null;S.adminData=await S.api.adminRead();
-          try{const fresh=await S.api.bootstrap();S.data.finance=fresh.finance||null}catch(_){}
+        }catch(e){
+          msg.textContent="Nu s-a confirmat salvarea. Reîncearcă fără să schimbi datele: identificatorul tranzacției previne dublarea.";
+          btn.disabled=false;return;
+        }
+        pending=null;
+        msg.textContent="Plata a fost înregistrată. Se actualizează situația…";
+        try{
+          S.adminData=await S.api.adminRead();
           if(S.tab==="admin")vAdmin(v);
-        }catch(e){msg.textContent="Nu s-a confirmat salvarea. Reîncearcă fără să schimbi datele: aplicația va verifica identificatorul tranzacției."}
-        finally{btn.disabled=false}
+        }catch(e){
+          msg.textContent="Plata a fost înregistrată, dar lista nu s-a actualizat. Revino în Administrare pentru datele noi.";
+          S.adminData=null;
+        }
+        try{const fresh=await S.api.bootstrap();S.data.finance=fresh.finance||null}catch(_){}
+        btn.disabled=false;
       };
     }
   }
