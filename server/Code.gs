@@ -327,7 +327,13 @@ function adminRole_(me) {
     "coca|mihai": "secretar",
     "rosu|silviu": "mv",
     "ursu|mircea": "secretar_zonal",
-    "beschiu|ovidiu": "trezorier"
+    "beschiu|ovidiu": "trezorier",
+    "simu|horia": "demnitar_mlnr",
+    "mihalache|richard": "demnitar_mlnr",
+    "hossu|andrei": "demnitar_mlnr",
+    "bartos|adrian": "demnitar_mlnr",
+    "paun|ciprian": "demnitar_mlnr",
+    "savus|cristian": "demnitar_mlnr"
   };
   if(!me || !me.uniqueIdentity) return "";
   const role=roles[me.key]||"";
@@ -335,6 +341,15 @@ function adminRole_(me) {
   if(role==="secretar" && office!=="secretar")return "";
   if(role==="trezorier" && office!=="trezorier")return "";
   if(role==="mv" && office!=="maestru venerabil")return "";
+  // Calitatea de demnitar trebuie să fie înregistrată și în coloana G.
+  if(role==="demnitar_mlnr"){
+    const r=rosterRows_().find(x=>x.row===me.row);
+    if(!r||!String(r[6]||"").trim())return "";
+  }
+  if(role==="secretar_zonal"){
+    const r=rosterRows_().find(x=>x.row===me.row);
+    if(!r||norm_(r[6])!=="secretar zonal")return "";
+  }
   return role;
 }
 function adminRequired_(me, role) {
