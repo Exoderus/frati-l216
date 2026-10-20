@@ -452,9 +452,7 @@ function fileAllowedNow_(f, level) {
     if (folderAllowedNow_(pid, level, name, mime)) direct = true;
     // Un document mutat intr-un folder de grad superior nu se livreaza
     // printr-un shortcut eventual ramas in alt folder.
-    const restricted = pid !== CFG.FOLDERS.library && pid !== CFG.FOLDERS.minutul
-      && !folderAllowedNow_(pid, 3, name, mime);
-    if (restricted) {
+    if (pid !== CFG.FOLDERS.library && pid !== CFG.FOLDERS.minutul) {
       try {
         const folder = DriveApp.getFolderById(pid);
         const anc = folder.getParents();
