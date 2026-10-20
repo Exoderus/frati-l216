@@ -16,7 +16,8 @@ const CFG = {
     lodges:   "1Etk_aEJ_3PKXdCgPt7T21v9jKtfAYchN_8BHHJK-4c0",
     matricol: "1wahZJvhNIMfh10GCw47xhRPvxUfVSDCX8y5O3Swuark",
     news:     "1Lo_7AdiMoOA6li6yo2e62JbIVjwzTJ3PausRyohLjBQ",
-    widow:    "16TcMEn5ZY5x1qB75iM3ss4BUet44p-l38bDdpKAr1Lk"
+    widow:    "16TcMEn5ZY5x1qB75iM3ss4BUet44p-l38bDdpKAr1Lk",
+    dues:     "1p5_VVZVtcsHXlzQsqXuo2Y5kxkCnCdZCvXMEEzJKU2Y"
   },
   FOLDERS: {
     tinute:  "12BoNMqN_mRn1tMZ4FvrPAPq3PnNM6HeT",
@@ -258,6 +259,60 @@ function widowFund_(me) {
   };
 }
 
+/* Cotizatii / Gala / sponsorizari, citire read-only.
+   Public: exclusiv cheie membru -> doua statusuri, fara sume, solduri sau sponsorizari.
+   Personal: numai randul identificat unic pentru contul autentificat.
+   Nicio obligatie nu se afiseaza ca neachitata inainte de vot + validare. */
+function finance_(me) {
+  const ss = SpreadsheetApp.openById(CFG.SHEETS.dues);
+  const config = ss.getSheetByName("Parametri").getRange("B5:D9").getDisplayValues();
+  const voteDues = norm_(config[0][2]) === "adoptat";
+  const voteGala = norm_(config[1][2]) === "adoptat";
+  const validated = norm_(config[4][0]) === "validat";
+  const rows = ss.getSheetByName("Situație frați").getRange("A5:K200").getDisplayValues()
+    .filter(r => /^\d+$/.test(String(r[0] || "").trim()) && r[1]);
+  const byKey = {};
+  const ambiguous = {};
+  rows.forEach(r => {
+    const w = norm_(r[1]).split(/\s+/).filter(Boolean);
+    if (w.length < 2) return;
+    const key = w[0] + "|" + w[1];
+    if (byKey[key]) ambiguous[key] = true;
+    byKey[key] = r;
+  });
+  const normStatus = (value, adopted) => {
+    if (!adopted) return "În așteptarea votului";
+    if (!validated) return "Neconfirmat";
+    const s = norm_(value);
+    if (s === "achitat integral") return "Achitat integral";
+    if (s === "achitat partial") return "Achitat parțial";
+    if (s === "neachitat") return "Neachitat";
+    return "Neconfirmat";
+  };
+  const publicStatuses = {};
+  rows.forEach(r => {
+    const w = norm_(r[1]).split(/\s+/).filter(Boolean);
+    if (w.length < 2) return;
+    const key = w[0] + "|" + w[1];
+    if (ambiguous[key]) return;
+    publicStatuses[key] = {
+      dues: normStatus(r[5], voteDues),
+      gala: normStatus(r[9], voteGala)
+    };
+  });
+  const own = !ambiguous[me.key] ? byKey[me.key] : null;
+  return {
+    year: "6026–6027",
+    adoption: { dues: voteDues, gala: voteGala },
+    publicStatuses: publicStatuses,
+    mine: own ? {
+      dues: { target: own[2], paid: own[3], difference: own[4], status: normStatus(own[5], voteDues) },
+      gala: { target: own[6], paid: own[7], difference: own[8], status: normStatus(own[9], voteGala) },
+      sponsorships: own[10]
+    } : null
+  };
+}
+
 /* Masuratori anonime, exclusiv in jurnalul Apps Script; schema raspunsului nu se schimba. */
 function bootstrapTimed_(stage, fn, metrics) {
   const started = Date.now();
@@ -290,6 +345,7 @@ function bootstrap_(me, email) {
       lodges: lodges,
       news: news,
       widow: null,
+      finance: null,
       events: [],
       plans: [],
       excursions: [],
@@ -303,6 +359,8 @@ function bootstrap_(me, email) {
     catch (e) { out.errors.events = String(e.message || e); }
     try { out.widow = bootstrapTimed_("widow_fund", () => widowFund_(me), metrics); }
     catch (_) { out.errors.widow = "unavailable"; }
+    try { out.finance = bootstrapTimed_("finance", () => finance_(me), metrics); }
+    catch (_) { out.errors.finance = "unavailable"; }
     const cat = bootstrapTimed_("drive_catalog", () => catalogCached_(level_(me.grad)), metrics);
     Object.keys(cat).forEach(k => out[k] = cat[k]);
     return out;
