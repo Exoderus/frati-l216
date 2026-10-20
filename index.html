@@ -549,6 +549,8 @@ async function loadAll(){
       S.data.events=(d.events||[]).map(evMap);
       S.data.plans=d.plans||[];S.data.plansOn=Array.isArray(d.plans);
       S.data.excursions=d.excursions||[];
+      S.data.widow=d.widow||null;
+      if(d.errors&&d.errors.widow)S.err.widow={status:500};
       if(d.errors&&d.errors.events)S.err.events={status:500};
       if(!CONFIG.SHOW_NEWS)S.data.news=[];
       if(d.me){S.me.key=d.me.key;S.me.fisa=d.me.fisa||null}
@@ -925,6 +927,13 @@ function openLucrare(){
     </ul><p class="lp-note">Minutul de regularitate nu intră la planșe. Fiecare frate aduce cel mult ${PIATRA.FULL} de lovituri pietrei Lojii; piatra devine cubică la ${L}. Anul masonic începe din nou la 1 septembrie.</p></div>
     <div class="sec-title">Planșe susținute</div>
     ${platesList?`<div class="card"><ul class="list">${platesList}</ul></div>`:`<div class="state">Nu sunt încă planșe susținute înregistrate pentru acest an masonic.</div>`}
+    ${S.data.widow?`<div class="sec-title">Trunchiul văduvei · situația Lojii</div>
+      <section class="card">
+        <div class="frow"><span class="muted">Total calculat</span><span class="num">${esc(S.data.widow.general.calculated)} lei</span></div>
+        <div class="frow"><span class="muted">Contribuții încasate</span><span class="num">${esc(S.data.widow.general.contributed)} lei</span></div>
+        <div class="frow"><span class="muted">Diferență informativă</span><span class="num">${esc(S.data.widow.general.difference)} lei</span></div>
+        <p class="small muted" style="margin:12px 0 0"><strong>*</strong> Sumele au caracter informativ și nu constituie obligații de plată până la adoptarea măsurii prin votul Lojii.</p>
+      </section>`:""}
     <div class="sec-title">Ultimele lovituri</div>
     ${rec?`<div class="card"><ul class="list">${rec}</ul></div>`:`<div class="state">Încă nicio lovitură în acest an.</div>`}
     <button class="primary" type="button" id="lmine">Vezi piatra mea</button>
@@ -1049,10 +1058,18 @@ function vMe(v){
     <div class="big" style="margin-top:6px">${pct===null?"–":pct+"%"}<small> · ${c.P} prezențe, ${c.M} motivate, ${c.N} nemotivate</small></div>
     <div class="dots">${M.dates.map((x,i)=>{const s=p[i]||"";const fut=x.d>today();return `<div class="dot ${s||(fut?"F":"F")}" title="${esc(fmtDM(x.d))}"><b>${s||(fut?"·":"–")}</b>${x.d.getDate()}.${String(x.d.getMonth()+1).padStart(2,"0")}</div>`}).join("")}</div>
     <div class="small muted" style="margin-top:8px">P prezent · M absent motivat · N absent nemotivat</div></section>`;
-  if(CONFIG.SHOW_TRUNCHI&&S.data.trunchi){
-    const rows=S.data.trunchi;const tax=(rows[0]||[])[3];
-    const r=rows.find(x=>keyFromFull(x[1])===me.key);
-    if(r)h+=`<section class="card"><div class="label">Trunchiul văduvei</div><div class="big" style="margin-top:6px">${esc(r[8]||"0")}<small> lei rest de plată</small></div><div class="small muted">${esc(r[5]||"0")} ținute taxate × ${esc(tax||"")} lei · plătit ${esc(r[7]||"0")} lei · plata la Fr∴ Orator</div></section>`;
+  const widow=S.data.widow;
+  if(widow){
+    const w=widow.mine;
+    h+=`<section class="card" aria-label="Situația mea la Trunchiul văduvei">
+      <div class="label">Trunchiul văduvei · ${esc(widow.year)}</div>
+      ${w?`<div class="frow"><span class="muted">Contribuții calculate</span><span class="num">${esc(w.calculated)} lei</span></div>
+        <div class="frow"><span class="muted">Contribuții efectuate</span><span class="num">${esc(w.contributed)} lei</span></div>
+        <div class="frow"><span class="muted">Diferență informativă</span><span class="num">${esc(w.difference)} lei</span></div>
+        <div class="small muted">${esc(w.taxedMeetings)} ținute luate în calcul</div>`:
+        `<p class="small muted">Situația individuală nu este încă asociată în registru. Solicită verificarea la Secretariat.</p>`}
+      <p class="small muted" style="margin-top:12px"><strong>*</strong> Sumele sunt calculate exclusiv cu titlu informativ. Ele nu constituie obligații de plată până la adoptarea măsurii prin votul Lojii.</p>
+    </section>`;
   }
   const F=S.me.fisa;
   const grad=(F&&F.grad)||me.grad, fn=(F&&F.functie)||me.functie;
@@ -1434,7 +1451,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-05";
+const APP_VERSION="2026.10.20-06";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
