@@ -199,31 +199,65 @@ function fisa_(key) {
   } catch (e) { return null; }
 }
 
+/* Masuratori anonime, exclusiv in jurnalul Apps Script; schema raspunsului nu se schimba. */
+function bootstrapTimed_(stage, fn, metrics) {
+  const started = Date.now();
+  try { return fn(); }
+  finally { metrics.push([stage, Date.now() - started]); }
+}
+
 function bootstrap_(me, email) {
-  // registrul fraților: doar ce afișează aplicația (fără telefoane, e-mailuri, anul nașterii)
-  const roster = rosterRows_().map(r => {
-    const b = /^(\d{1,2})\.(\d{1,2})\./.exec(r[3]);
-    return [r[0], r[1], r[2], b ? b[1] + "." + b[2] + ".2000" : "", r[4], r[5], "", "", "", "", "", r[11]];
-  });
-  const out = {
-    me: { email: email, key: me.key, fisa: fisa_(me.key) },
-    roster: roster,
-    presence: SpreadsheetApp.openById(CFG.SHEETS.presence).getSheetByName("Registru prezență").getRange("A5:AZ200").getDisplayValues(),
-    visits: values_(CFG.SHEETS.visits, "A5:E1000", "Vizite"),
-    plates: values_(CFG.SHEETS.plates, "A5:J1000", "Planșe"),
-    lodges: values_(CFG.SHEETS.lodges, "A2:J100"),
-    news: values_(CFG.SHEETS.news, "A2:E300"),
-    events: [],
-    plans: [],
-    excursions: [],
-    errors: {}
-  };
-  try { out.excursions = excursions_(); } catch (e) { out.errors.excursions = String(e.message || e); }
-  try { out.plans = plans_(email); } catch (e) { out.errors.plans = String(e.message || e); }
-  try { out.events = events_(); } catch (e) { out.errors.events = String(e.message || e); }
-  const cat = catalog_(level_(me.grad));
-  Object.keys(cat).forEach(k => out[k] = cat[k]);
-  return out;
+  const started = Date.now();
+  const metrics = [];
+  let status = "ok";
+  try {
+    // Aceleasi citiri si aceeasi ordine ca in versiunea functionala.
+    const roster = bootstrapTimed_("roster", () => rosterRows_().map(r => {
+      const b = /^(\\d{1,2})\\.(\\d{1,2})\\./.exec(r[3]);
+      return [r[0], r[1], r[2], b ? b[1] + "." + b[2] + ".2000" : "", r[4], r[5], "", "", "", "", "", r[11]];
+    }), metrics);
+    const fisa = bootstrapTimed_("member_profile", () => fisa_(me.key), metrics);
+    const presence = bootstrapTimed_("presence", () => SpreadsheetApp.openById(CFG.SHEETS.presence).getSheetByName("Registru prezență").getRange("A5:AZ200").getDisplayValues(), metrics);
+    const visits = bootstrapTimed_("visits", () => values_(CFG.SHEETS.visits, "A5:E1000", "Vizite"), metrics);
+    const plates = bootstrapTimed_("plates", () => values_(CFG.SHEETS.plates, "A5:J1000", "Planșe"), metrics);
+    const lodges = bootstrapTimed_("lodges", () => values_(CFG.SHEETS.lodges, "A2:J100"), metrics);
+    const news = bootstrapTimed_("news", () => values_(CFG.SHEETS.news, "A2:E300"), metrics);
+    const out = {
+      me: { email: email, key: me.key, fisa: fisa },
+      roster: roster,
+      presence: presence,
+      visits: visits,
+      plates: plates,
+      lodges: lodges,
+      news: news,
+      events: [],
+      plans: [],
+      excursions: [],
+      errors: {}
+    };
+    try { out.excursions = bootstrapTimed_("excursions", () => excursions_(), metrics); }
+    catch (e) { out.errors.excursions = String(e.message || e); }
+    try { out.plans = bootstrapTimed_("plans", () => plans_(email), metrics); }
+    catch (e) { out.errors.plans = String(e.message || e); }
+    try { out.events = bootstrapTimed_("calendar", () => events_(), metrics); }
+    catch (e) { out.errors.events = String(e.message || e); }
+    const cat = bootstrapTimed_("drive_catalog", () => catalog_(level_(me.grad)), metrics);
+    Object.keys(cat).forEach(k => out[k] = cat[k]);
+    return out;
+  } catch (e) {
+    status = "error";
+    throw e;
+  } finally {
+    // Nu scrie e-mailuri, nume, tokenuri, ID-uri de documente sau date din registre.
+    try {
+      console.log(JSON.stringify({
+        kind: "bootstrap_performance",
+        status: status,
+        total_ms: Date.now() - started,
+        stages_ms: Object.fromEntries(metrics)
+      }));
+    } catch (_) { /* masurarea nu intrerupe aplicatia */ }
+  }
 }
 
 /* ---------- vizite anunțate („Cine mai merge?”) ----------
