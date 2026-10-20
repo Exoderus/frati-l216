@@ -100,9 +100,17 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .admin-mark-group{display:flex;align-items:center;gap:4px}
 .admin-mark-btn{min-width:34px;min-height:37px;padding:6px 5px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--fg);font-weight:700;cursor:pointer}
 .admin-mark-btn.chosen{background:var(--gold);color:#101827;border-color:var(--gold)}
+/* Culori semantice pentru marcajul activ: P / M / N / necompletat. */
+.admin-mark-btn[data-value="P"].chosen{background:#22c55e;border-color:#22c55e;color:#092d19}
+.admin-mark-btn[data-value="M"].chosen{background:#f59e0b;border-color:#f59e0b;color:#322001}
+.admin-mark-btn[data-value="N"].chosen{background:#ef4444;border-color:#ef4444;color:#fff}
+.admin-mark-btn[data-value=""].chosen{background:#ec4899;border-color:#ec4899;color:#fff}
 .admin-mark-btn:disabled{opacity:.5;cursor:wait}
 .admin-mark-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-.admin-mark-btn.clear{color:var(--muted)}
+.admin-mark-btn.clear:not(.chosen){color:var(--muted)}
+.admin-attendance-legend{display:flex;flex-wrap:wrap;gap:7px 14px;margin:12px 0 8px;font-size:12px;color:var(--muted)}
+.admin-attendance-legend span{display:inline-flex;align-items:center;gap:5px}
+.admin-attendance-legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
 .finance-item{padding-top:12px;margin-top:10px;border-top:1px solid var(--line)}
 .finance-item-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px;margin-bottom:8px}
 .finance-badge{display:inline-block;padding:4px 9px;border-radius:999px;font-size:11px;line-height:1.25;font-weight:600;background:var(--line);color:var(--fg)}
@@ -1268,6 +1276,12 @@ function vAdmin(v){
     host.innerHTML=`<section class="card"><div class="label">Prezența la Ținută</div>
       <label class="small muted" for="admin-date">Data ținutei</label><select id="admin-date">${dateOptions}</select>
       <div class="small muted" id="admin-message" aria-live="polite" style="margin:9px 0"> ${role==="secretar"?"Selectează starea fiecărui frate. Modificările sunt salvate în Google Sheets.":"Consultare; editarea este rezervată Secretarului."}</div>
+      <div class="admin-attendance-legend" aria-label="Legenda prezențelor">
+        <span><i style="background:#22c55e"></i>P · prezent</span>
+        <span><i style="background:#f59e0b"></i>M · motivat</span>
+        <span><i style="background:#ef4444"></i>N · nemotivat</span>
+        <span><i style="background:#ec4899"></i>× · necompletat</span>
+      </div>
       <ul class="list">${rows}</ul></section>`;
     host.querySelector("#admin-date").onchange=e=>{S.adminDate=e.target.value;vAdmin(v)};
     if(role==="secretar")host.querySelectorAll(".admin-mark-btn").forEach(btn=>btn.onclick=async()=>{
@@ -1695,7 +1709,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-11";
+const APP_VERSION="2026.10.20-12";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
