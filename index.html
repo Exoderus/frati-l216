@@ -561,7 +561,7 @@ async function loadAll(){
     // 2) date proaspete în fundal
     try{
       const d=await A.bootstrap();
-      apply(d);try{localStorage.setItem(CK,JSON.stringify(d))}catch(_){}
+      apply(d);try{const cachedData={...d};delete cachedData.widow;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
     }catch(e){
       if(e.status===401){store.del(AUTH_KEY);startLogin(true);return}
       if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
