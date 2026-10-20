@@ -1048,7 +1048,7 @@ function vRegistru(){
   <tfoot><tr><th scope="row">Prezenți</th>${tot.map(n=>`<td class="num">${n}</td>`).join("")}<td></td></tr></tfoot></table></div>`;
 }
 
-function widowLei(v){const x=String(v==null?"":v).trim();return esc(!x||x==="—"||x==="–"?"—":/lei\\b/i.test(x)?x:x+" lei")}
+function widowLei(v){const x=String(v==null?"":v).trim();return esc(!x||x==="—"||x==="–"?"—":/lei\b/i.test(x)?x:x+" lei")}
 function vMe(v){
   if(!M.me){v.innerHTML=`<div class="state">Nu am găsit contul ${esc(S.me.email||"")} în lista fraților activi. Situația personală apare după ce Secretarul îți asociază adresa de e-mail.</div>`;return}
   const me=M.me,p=M.pres.get(me.key)||[];let h=piatraMeaCard(me);
