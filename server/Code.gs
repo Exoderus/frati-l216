@@ -270,7 +270,7 @@ function finance_(me) {
   const voteGala = norm_(config[1][2]) === "adoptat";
   const validated = norm_(config[4][0]) === "validat";
   const rows = ss.getSheetByName("Situație frați").getRange("A5:K200").getDisplayValues()
-    .filter(r => /^\\d+$/.test(String(r[0] || "").trim()) && r[1]);
+    .filter(r => /^\d+$/.test(String(r[0] || "").trim()) && r[1]);
   const byKey = {};
   const ambiguous = {};
   rows.forEach(r => {
