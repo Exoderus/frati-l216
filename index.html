@@ -1286,7 +1286,7 @@ function vAdmin(v){
     return;
   }
   const data=S.adminData,role=S.me.adminRole;
-  const selected=S.adminMode||"attendance";
+  const selected=S.adminMode||"finance";
   const formatMoney=n=>Number(n||0).toLocaleString("ro-RO",{maximumFractionDigits:2})+" lei";
   const choices='<option value="">Selectează un frate</option>'+data.financial.map(x=>`<option value="${esc(x.key)}">${esc(x.name)}</option>`).join("");
   const labels={secretar:"Secretariat",trezorier:"Trezorerie",mv:"Maestru Venerabil",secretar_zonal:"Secretariat Zonal",demnitar_mlnr:"Demnitar MLNR"};
@@ -1747,7 +1747,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-13";
+const APP_VERSION="2026.10.20-14";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
