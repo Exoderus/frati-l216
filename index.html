@@ -589,7 +589,7 @@ async function loadAll(){
     // 2) date proaspete în fundal
     try{
       const d=await A.bootstrap();
-      apply(d);refreshOpenFinanceDetails();try{const cachedData={...d};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
+      apply(d);refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
     }catch(e){
       if(e.status===401){store.del(AUTH_KEY);startLogin(true);return}
       if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
@@ -729,7 +729,7 @@ function render(){
   </div>${S.api.mode==="google"?`<button class="outbtn" type="button" id="outbtn" aria-label="Ieși din cont" title="Ieși din cont">${svg("out",20)}</button>`:""}</div>${S.api.mode==="preview"?'<p>Previzualizare cu datele tale din Drive. Documentele se deschid în aplicația finală.</p>':""}</div></div>
   <main class="wrap"><div class="view" id="view"></div></main>
   <nav class="tabs" aria-label="Secțiuni"><div class="in" role="tablist">
-    ${TABS.filter(t=>t[0]!=="admin"||S.me.adminRole).map(([id,label,ic])=>`<button class="tab" role="tab" type="button" id="tab-${id}" aria-selected="${S.tab===id}" data-tab="${id}">${svg(ic)}<span>${label}</span></button>`).join("")}
+    ${TABS.filter(t=>t[0]!=="admin").map(([id,label,ic])=>`<button class="tab" role="tab" type="button" id="tab-${id}" aria-selected="${S.tab===id}" data-tab="${id}">${svg(ic)}<span>${label}</span></button>`).join("")}
   </div></nav>`;
   const ob=app.querySelector("#outbtn");if(ob)ob.onclick=logout;
   app.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;render();window.scrollTo(0,0)});
@@ -1137,7 +1137,7 @@ function financePublic(){
 
 function vMe(v){
   if(!M.me){v.innerHTML=`<div class="state">Nu am găsit contul ${esc(S.me.email||"")} în lista fraților activi. Situația personală apare după ce Secretarul îți asociază adresa de e-mail.</div>`;return}
-  const me=M.me,p=M.pres.get(me.key)||[];let h=piatraMeaCard(me);
+  const me=M.me,p=M.pres.get(me.key)||[];let h=(S.me.adminRole?`<button class="cta" id="open-admin" type="button">${svg("clipboard",18)} Administrarea Lojii</button>`:"")+piatraMeaCard(me);
   const held=M.dates.map((x,i)=>({...x,v:p[i]||""})).filter(x=>x.d<=today()||x.v);
   const c={P:0,M:0,N:0};held.forEach(x=>{if(c[x.v]!==undefined)c[x.v]++});
   const tot=c.P+c.M+c.N,pct=tot?Math.round(c.P/tot*100):null;
@@ -1177,6 +1177,7 @@ function vMe(v){
   if(S.api.mode==="google")h+=`<button class="gbtn" type="button" style="align-self:center" onclick="logout()">Ieși din cont</button>`;
   v.innerHTML=h;
   stoneMount(v.querySelector("#stone-me"),"l216.piatra.me."+me.key,S.viewShown);
+  const adminEntry=v.querySelector("#open-admin");if(adminEntry)adminEntry.onclick=()=>{S.tab="admin";render();window.scrollTo(0,0)};
 }
 
 function vLib(v){
@@ -1231,7 +1232,7 @@ function vAdmin(v){
   const host=v.querySelector("#admin-body");
   if(selected==="attendance"){
     const dates=data.dates||[];
-    const selectedDate=dates.includes(S.adminDate)?S.adminDate:(dates.find(x=>x===dates[0])||"");
+    const selectedDate=dates.includes(S.adminDate)?S.adminDate:(dates.filter(x=>parseDMY(x)&&parseDMY(x)<=today()).slice(-1)[0]||dates[0]||"");
     S.adminDate=selectedDate;
     const dateOptions=dates.map(d=>`<option value="${esc(d)}"${d===selectedDate?" selected":""}>${esc(d)}</option>`).join("");
     const index=dates.indexOf(selectedDate);
