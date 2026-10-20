@@ -81,7 +81,8 @@ function member_(email) {
   const rows = rosterRows_();
   const r = rows.find(x => String(x[10]).trim().toLowerCase() === email) || rows.find(x => String(x[9]).trim().toLowerCase() === email);
   if (!r || norm_(r[12]) !== "activ") return null;
-  return { key: key_(r[1], r[2]), row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4] };
+  const k=key_(r[1],r[2]);
+  return { key: k, row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4], functie: r[5], uniqueIdentity: rows.filter(x=>norm_(x[12])==="activ"&&key_(x[1],x[2])===k).length===1 };
 }
 
 /* ---------- jurnal de acces ---------- */
@@ -328,7 +329,13 @@ function adminRole_(me) {
     "ursu|mircea": "secretar_zonal",
     "beschiu|ovidiu": "trezorier"
   };
-  return me && roles[me.key] || "";
+  if(!me || !me.uniqueIdentity) return "";
+  const role=roles[me.key]||"";
+  const office=norm_(me.functie);
+  if(role==="secretar" && office!=="secretar")return "";
+  if(role==="trezorier" && office!=="trezorier")return "";
+  if(role==="mv" && office!=="maestru venerabil")return "";
+  return role;
 }
 function adminRequired_(me, role) {
   const current = adminRole_(me);
