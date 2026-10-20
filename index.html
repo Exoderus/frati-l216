@@ -97,6 +97,12 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .finance-accordion[open] .finance-accordion-chevron{transform:rotate(180deg)}
 .finance-accordion-content{padding:0 12px 14px;border-top:1px solid var(--line)}
 .finance-accordion-content>.card{margin:0!important;border:0;box-shadow:none;padding:10px 2px 0}
+.admin-mark-group{display:flex;align-items:center;gap:4px}
+.admin-mark-btn{min-width:34px;min-height:37px;padding:6px 5px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--fg);font-weight:700;cursor:pointer}
+.admin-mark-btn.chosen{background:var(--gold);color:#101827;border-color:var(--gold)}
+.admin-mark-btn:disabled{opacity:.5;cursor:wait}
+.admin-mark-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.admin-mark-btn.clear{color:var(--muted)}
 .finance-item{padding-top:12px;margin-top:10px;border-top:1px solid var(--line)}
 .finance-item-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px;margin-bottom:8px}
 .finance-badge{display:inline-block;padding:4px 9px;border-radius:999px;font-size:11px;line-height:1.25;font-weight:600;background:var(--line);color:var(--fg)}
@@ -327,6 +333,8 @@ button.navbtn{cursor:pointer;font-family:inherit}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:var(--line)}
 .seg button{border:none;background:transparent;border-radius:9px;height:38px;font-size:14px;font-weight:500;color:var(--muted);cursor:pointer}
 .seg button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgb(0 0 0 / .12)}
+.admin-view-switch{margin-bottom:16px}
+.admin-view-switch button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgb(0 0 0 / .12)}
 .regwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
 .reg{border-collapse:separate;border-spacing:0;font-size:13px;min-width:100%}
 .reg th,.reg td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -454,6 +462,9 @@ function serverAdapter(token){
     mode:"google",
     async me(){return {email:String(pl.email||"").toLowerCase(),name:pl.given_name||""}},
     bootstrap(){return retry(()=>call("bootstrap"))},
+    adminRead(){return retry(()=>call("admin_read"))},
+    attendanceSet(data){return call("attendance_set",data)},
+    paymentAdd(data){return call("payment_add",data)},
     planAdd(data){return call("plan_add",data)},
     planCancel(id){return call("plan_cancel",{id})},
     async file(id){const j=await retry(()=>call("file",{id}));const bin=atob(j.b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:j.mime||"application/octet-stream"})}
@@ -547,6 +558,7 @@ const IC={
   web:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
   fb:'<path d="M14 8h2.5V4.5H14c-2.2 0-4 1.8-4 4V11H7.5v3.5H10V21h3.5v-6.5H16l.5-3.5h-3V8.8c0-.4.3-.8.5-.8z"/>',
   in:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"/>',
+  clipboard:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5h6M8 10h8M8 14h8"/>',
   temple:'<path d="M3 9l9-5 9 5M5 9v9M9.5 9v9M14.5 9v9M19 9v9M3 20h18"/>',
   pin:'<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
   out:'<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
@@ -577,7 +589,7 @@ async function loadAll(){
       if(d.errors&&d.errors.widow)S.err.widow={status:500};
       if(d.errors&&d.errors.events)S.err.events={status:500};
       if(!CONFIG.SHOW_NEWS)S.data.news=[];
-      if(d.me){S.me.key=d.me.key;S.me.fisa=d.me.fisa||null}
+      if(d.me){S.me.key=d.me.key;S.me.fisa=d.me.fisa||null;S.me.adminRole=d.me.adminRole||""}
     };
     // 1) afișare imediată din ultima versiune salvată pe acest dispozitiv
     let cached=null;try{cached=JSON.parse(localStorage.getItem(CK)||"null")}catch(_){}
@@ -585,7 +597,7 @@ async function loadAll(){
     // 2) date proaspete în fundal
     try{
       const d=await A.bootstrap();
-      apply(d);refreshOpenFinanceDetails();try{const cachedData={...d};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
+      apply(d);refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
     }catch(e){
       if(e.status===401){store.del(AUTH_KEY);startLogin(true);return}
       if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
@@ -1100,7 +1112,10 @@ function financeMe(){
   return `<section class="card" aria-label="Situația mea financiară">
     <div class="label">Cotizații și contribuții · ${esc(finance.year)}</div>
     ${own?item("Metalele Lojii — cotizație",own.dues,finance.adoption.dues)+item("Gala Elitelor",own.gala,finance.adoption.gala)+`
-      <div class="frow" style="margin-top:10px"><span class="muted">Sponsorizările mele</span><span class="num">${widowLei(own.sponsorships)}</span></div>`:
+      <div class="frow" style="margin-top:10px"><span class="muted">Sponsorizările mele</span><span class="num">${widowLei(own.sponsorships)}</span></div>
+      <div class="finance-item"><strong>Istoricul plăților mele</strong>
+        ${own.payments&&own.payments.length?`<ul class="list">${own.payments.map(p=>`<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><div class="t">${esc(p.date)} · ${esc(p.component)}</div><strong class="num">${widowLei(p.amount)}</strong></li>`).join("")}</ul>`:'<p class="small muted">Nu sunt încă înregistrate plăți.</p>'}
+      </div>`:
       '<p class="small muted">Situația ta financiară nu a putut fi asociată în mod unic. Solicită verificarea la Trezorerie.</p>'}
     <p class="small muted" style="margin-top:12px"><strong>*</strong> Pentru componentele încă neaprobate, valorile sunt cele de anul trecut și au caracter orientativ. Valorile aprobate sunt preluate din registrul actualizat.</p>
   </section>`;
@@ -1127,9 +1142,25 @@ function financePublic(){
      <ul class="list">${rows}</ul></div>`;
 }
 
+function adminSwitchHTML(){
+  return '<div class="seg admin-view-switch" role="group" aria-label="Mod de vizualizare">'+
+    '<button type="button" data-profile-view="brother" aria-pressed="'+(S.meView!=="officer")+'">Ca frate</button>'+
+    '<button type="button" data-profile-view="officer" aria-pressed="'+(S.meView==="officer")+'">Ca demnitar</button></div>';
+}
+function bindAdminSwitch(v){
+  v.querySelectorAll("[data-profile-view]").forEach(btn=>btn.onclick=()=>{
+    S.meView=btn.dataset.profileView;
+    try{localStorage.setItem("l216.admin.view",S.meView)}catch(_){}
+    vMe(v);
+  });
+}
 function vMe(v){
   if(!M.me){v.innerHTML=`<div class="state">Nu am găsit contul ${esc(S.me.email||"")} în lista fraților activi. Situația personală apare după ce Secretarul îți asociază adresa de e-mail.</div>`;return}
-  const me=M.me,p=M.pres.get(me.key)||[];let h=piatraMeaCard(me);
+  if(S.me.adminRole && !S.meView){
+    try{S.meView=localStorage.getItem("l216.admin.view")==="officer"?"officer":"brother"}catch(_){S.meView="brother"}
+  }
+  if(S.me.adminRole && S.meView==="officer"){vAdmin(v);return}
+  const me=M.me,p=M.pres.get(me.key)||[];let h=(S.me.adminRole?adminSwitchHTML():"")+piatraMeaCard(me);
   const held=M.dates.map((x,i)=>({...x,v:p[i]||""})).filter(x=>x.d<=today()||x.v);
   const c={P:0,M:0,N:0};held.forEach(x=>{if(c[x.v]!==undefined)c[x.v]++});
   const tot=c.P+c.M+c.N,pct=tot?Math.round(c.P/tot*100):null;
@@ -1169,6 +1200,7 @@ function vMe(v){
   if(S.api.mode==="google")h+=`<button class="gbtn" type="button" style="align-self:center" onclick="logout()">Ieși din cont</button>`;
   v.innerHTML=h;
   stoneMount(v.querySelector("#stone-me"),"l216.piatra.me."+me.key,S.viewShown);
+  if(S.me.adminRole)bindAdminSwitch(v);
 }
 
 function vLib(v){
@@ -1185,6 +1217,138 @@ function vLib(v){
     h+=`<details class="card fold"><summary><span class="doci">${svg(g.subs?"audio":"doc",18)}</span><span><span class="t">${esc(g.name)}</span><span class="s">${g.subs?`${g.files.length} ${g.files.length===1?"piesă":"piese"}`:n(g.files.length)}</span></span><span class="chev">${svg("chev",16)}</span></summary>${body}</details>`;
   });
   v.innerHTML=h;
+}
+
+
+/* ---------- Administrarea Lojii: operatii autorizate exclusiv in backend ---------- */
+function vAdmin(v){
+  if(!S.me.adminRole){v.innerHTML='<div class="state err">Acces nepermis.</div>';return}
+  if(!S.api.adminRead){v.innerHTML='<div class="state">Funcționalitatea este disponibilă doar în aplicația autentificată.</div>';return}
+  if(!S.adminData){
+    v.innerHTML=adminSwitchHTML()+'<div class="state">Se încarcă tabloul administrativ…</div>';bindAdminSwitch(v);
+    if(!S.adminBusy){
+      S.adminBusy=true;
+      S.api.adminRead().then(data=>{
+        S.adminData=data;S.adminBusy=false;
+        if(S.tab==="me"&&S.meView==="officer")vAdmin($("#view"));
+      }).catch(e=>{
+        S.adminBusy=false;
+        if(S.tab==="me"&&S.meView==="officer")$("#view").innerHTML=adminSwitchHTML()+'<div class="state err">Nu am putut încărca datele administrative. <button class="cta" id="admin-retry">Reîncearcă</button></div>';bindAdminSwitch($("#view"));
+        const retry=$("#admin-retry");if(retry)retry.onclick=()=>{S.adminData=null;vAdmin($("#view"))};
+      });
+    }
+    return;
+  }
+  const data=S.adminData,role=S.me.adminRole;
+  const selected=S.adminMode||"attendance";
+  const formatMoney=n=>Number(n||0).toLocaleString("ro-RO",{maximumFractionDigits:2})+" lei";
+  const choices='<option value="">Selectează un frate</option>'+data.financial.map(x=>`<option value="${esc(x.key)}">${esc(x.name)}</option>`).join("");
+  const labels={secretar:"Secretariat",trezorier:"Trezorerie",mv:"Maestru Venerabil",secretar_zonal:"Secretariat Zonal",demnitar_mlnr:"Demnitar MLNR"};
+  v.innerHTML=adminSwitchHTML()+`<div class="card"><div class="label">Administrare · ${esc(labels[role]||"Consultare")}</div>
+      <p class="small muted" style="margin-bottom:0">Acces autorizat. Operațiunile sunt înscrise direct în registrele Google Sheets.</p></div>
+    <div class="seg" role="tablist">
+      <button role="tab" type="button" data-admin-mode="attendance" aria-selected="${selected==="attendance"}">Prezențe</button>
+      <button role="tab" type="button" data-admin-mode="finance" aria-selected="${selected==="finance"}">Trezorerie</button>
+    </div>
+    <div id="admin-body"></div>`;
+  bindAdminSwitch(v);
+  v.querySelectorAll("[data-admin-mode]").forEach(b=>b.onclick=()=>{S.adminMode=b.dataset.adminMode;vAdmin(v)});
+  const host=v.querySelector("#admin-body");
+  if(selected==="attendance"){
+    const dates=data.dates||[];
+    const selectedDate=dates.includes(S.adminDate)?S.adminDate:(dates.filter(x=>parseDMY(x)&&parseDMY(x)<=today()).slice(-1)[0]||dates[0]||"");
+    S.adminDate=selectedDate;
+    const dateOptions=dates.map(d=>`<option value="${esc(d)}"${d===selectedDate?" selected":""}>${esc(d)}</option>`).join("");
+    const index=dates.indexOf(selectedDate);
+    const rows=(data.attendance||[]).map(x=>{
+      const current=x.marks[index]||"";
+      const control=role==="secretar"?`<div class="admin-mark-group" role="group" aria-label="Prezență ${esc(x.name)}">${[["P","Prezent"],["M","Motivat"],["N","Nemotivat"]].map(([k,label])=>`<button type="button" class="admin-mark-btn ${current===k?"chosen":""}" data-attendee="${esc(x.key)}" data-value="${k}" aria-pressed="${current===k}" aria-label="${esc(label)}: ${esc(x.name)}">${k}</button>`).join("")}<button type="button" class="admin-mark-btn clear ${current===""?"chosen":""}" data-attendee="${esc(x.key)}" data-value="" aria-label="Șterge marcajul pentru ${esc(x.name)}">×</button></div>`:`<span class="tag">${esc(({P:"Prezent",M:"Motivat",N:"Nemotivat"})[current]||"Nemarcat")}</span>`;
+      return `<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><span class="t">${esc(x.name)}</span>${control}</li>`;
+    }).join("");
+    host.innerHTML=`<section class="card"><div class="label">Prezența la Ținută</div>
+      <label class="small muted" for="admin-date">Data ținutei</label><select id="admin-date">${dateOptions}</select>
+      <div class="small muted" id="admin-message" aria-live="polite" style="margin:9px 0"> ${role==="secretar"?"Selectează starea fiecărui frate. Modificările sunt salvate în Google Sheets.":"Consultare; editarea este rezervată Secretarului."}</div>
+      <ul class="list">${rows}</ul></section>`;
+    host.querySelector("#admin-date").onchange=e=>{S.adminDate=e.target.value;vAdmin(v)};
+    if(role==="secretar")host.querySelectorAll(".admin-mark-btn").forEach(btn=>btn.onclick=async()=>{
+      const group=btn.closest(".admin-mark-group");
+      const buttons=[...group.querySelectorAll(".admin-mark-btn")];
+      const found=data.attendance.find(x=>x.key===btn.dataset.attendee);
+      const previous=found?.marks[index]||"";
+      const next=btn.dataset.value;
+      if(previous===next)return;
+      buttons.forEach(x=>x.disabled=true);
+      const msg=host.querySelector("#admin-message");msg.textContent="Se salvează prezența…";
+      try{
+        await S.api.attendanceSet({memberKey:btn.dataset.attendee,date:selectedDate,value:next});
+        if(found)found.marks[index]=next;
+        buttons.forEach(x=>{const chosen=x.dataset.value===next;x.classList.toggle("chosen",chosen);x.setAttribute("aria-pressed",String(chosen))});
+        msg.textContent="Prezența a fost salvată.";
+        S.api.bootstrap().then(d=>{S.data.presence=d.presence||[];build()}).catch(()=>{});
+      }catch(e){msg.textContent="Salvarea a eșuat. Încearcă din nou."}
+      finally{buttons.forEach(x=>x.disabled=false)}
+    });
+  }else{
+    const list=(data.financial||[]).slice().sort((a,b)=>a.name.localeCompare(b.name,"ro"));
+    const curr=list.find(x=>x.key===S.adminMember)||list[0];
+    if(curr)S.adminMember=curr.key;
+    const opt=list.map(x=>`<option value="${esc(x.key)}"${x.key===S.adminMember?" selected":""}>${esc(x.name)}</option>`).join("");
+    const line=(name,obj)=>`<div class="finance-item"><strong>${esc(name)}</strong>
+      <div class="frow"><span class="muted">Valoare de referință</span><span>${formatMoney(obj.target)}</span></div>
+      <div class="frow"><span class="muted">Total achitat</span><span>${formatMoney(obj.paid)}</span></div>
+      <div class="frow"><span class="muted">Diferență</span><strong>${formatMoney(obj.remaining)}</strong></div>
+      <div class="small muted">${esc(obj.status||"")}</div></div>`;
+    const history=curr?.payments?.length?curr.payments.map(p=>`<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><div><div class="t">${esc(p.date)} · ${esc(p.component)}</div><div class="small muted">${esc(p.reference||"")}</div></div><strong>${formatMoney(p.amount)}</strong></li>`).join(""):'<li class="item">Nu există încă plăți înregistrate.</li>';
+    host.innerHTML=`<section class="card"><div class="label">Situație financiară nominală</div>
+      <label class="small muted" for="admin-member">Frate</label><select id="admin-member">${opt}</select>
+      ${curr?line("Metalele Lojii",curr.dues)+line("Gala Elitelor",curr.gala)+`<div class="frow"><span class="muted">Sponsorizări</span><strong>${formatMoney(curr.sponsorships)}</strong></div>`:""}
+      <div class="finance-item"><strong>Istoricul tranșelor</strong><ul class="list">${history}</ul></div></section>
+      ${role==="trezorier"? `<section class="card"><div class="label">Înregistrează încasare nouă</div>
+        <p class="small muted">Plățile în tranșe se adaugă ca rânduri separate; nu se suprascriu plățile anterioare.</p>
+        <label class="small muted" for="admin-category">Componentă</label>
+        <select id="admin-category"><option>Cotizație Lojă</option><option>Gala Elitelor</option><option>Sponsorizare</option></select>
+        <label class="small muted" for="admin-amount">Sumă primită (lei)</label>
+        <input id="admin-amount" type="number" min="0.01" max="1000000" step="0.01" inputmode="decimal" placeholder="Ex. 500">
+        <label class="small muted" for="admin-method">Modalitate</label>
+        <select id="admin-method"><option>Numerar</option><option>Transfer bancar</option></select>
+        <button class="primary" type="button" id="admin-payment-save" style="margin-top:14px">Confirmă încasarea</button>
+        <p class="small muted" id="admin-payment-message" aria-live="polite"></p>
+      </section>`:""}`;
+    host.querySelector("#admin-member").onchange=e=>{S.adminMember=e.target.value;vAdmin(v)};
+    if(role==="trezorier"){
+      const btn=host.querySelector("#admin-payment-save"),msg=host.querySelector("#admin-payment-message");
+      let pending=null;
+      ["admin-category","admin-amount","admin-method"].forEach(id=>host.querySelector("#"+id).onchange=()=>{pending=null});
+      btn.onclick=async()=>{
+        const amount=Number(host.querySelector("#admin-amount").value);
+        if(!Number.isFinite(amount)||amount<=0||amount>1000000||Math.abs(Math.round(amount*100)-amount*100)>1e-6){msg.textContent="Introdu o sumă validă.";return}
+        const payload={memberKey:S.adminMember,category:host.querySelector("#admin-category").value,
+          amount:amount,method:host.querySelector("#admin-method").value};
+        if(!pending||pending.memberKey!==payload.memberKey||pending.category!==payload.category||pending.amount!==payload.amount||pending.method!==payload.method){
+          payload.paymentId="p_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2)+"_"+Math.random().toString(36).slice(2);
+          pending=payload;
+        }
+        btn.disabled=true;msg.textContent="Se înregistrează plata…";
+        try{
+          await S.api.paymentAdd(pending);
+        }catch(e){
+          msg.textContent="Nu s-a confirmat salvarea. Reîncearcă fără să schimbi datele: identificatorul tranzacției previne dublarea.";
+          btn.disabled=false;return;
+        }
+        pending=null;
+        msg.textContent="Plata a fost înregistrată. Se actualizează situația…";
+        try{
+          S.adminData=await S.api.adminRead();
+          if(S.tab==="me"&&S.meView==="officer")vAdmin(v);
+        }catch(e){
+          msg.textContent="Plata a fost înregistrată, dar lista nu s-a actualizat. Revino în Administrare pentru datele noi.";
+          S.adminData=null;
+        }
+        try{const fresh=await S.api.bootstrap();S.data.finance=fresh.finance||null}catch(_){}
+        btn.disabled=false;
+      };
+    }
+  }
 }
 
 function vBros(v){
@@ -1531,7 +1695,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-10";
+const APP_VERSION="2026.10.20-11";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
