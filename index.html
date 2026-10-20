@@ -1308,6 +1308,17 @@ function vAdmin(v){
     S.adminDate=selectedDate;
     const dateOptions=dates.map(d=>`<option value="${esc(d)}"${d===selectedDate?" selected":""}>${esc(d)}</option>`).join("");
     const index=dates.indexOf(selectedDate);
+    const attendanceTotals=()=>{
+      const counts={P:0,M:0,N:0,blank:0};
+      (data.attendance||[]).forEach(x=>{const mark=x.marks?.[index]||"";if(mark==="P"||mark==="M"||mark==="N")counts[mark]++;else counts.blank++});
+      return counts;
+    };
+    const renderAttendanceTotals=()=>{
+      const counts=attendanceTotals();
+      const summary=host.querySelector("#admin-attendance-totals");
+      if(!summary)return;
+      summary.innerHTML=[["Prezenți",counts.P,"#22c55e"],["Motivați",counts.M,"#f59e0b"],["Nemotivați",counts.N,"#ef4444"],["Necompletați",counts.blank,"#ec4899"]].map(([label,num,color])=>`<div style="flex:1 1 110px;min-width:0;padding:10px 12px;border:1px solid var(--line,#34405d);border-radius:10px"><div class="small muted">${label}</div><strong style="display:block;margin-top:5px;font-size:24px;color:${color}">${num}</strong></div>`).join("");
+    };
     const rows=(data.attendance||[]).map(x=>{
       const current=x.marks[index]||"";
       const control=role==="secretar"?`<div class="admin-mark-group" role="group" aria-label="Prezență ${esc(x.name)}">${[["P","Prezent"],["M","Motivat"],["N","Nemotivat"]].map(([k,label])=>`<button type="button" class="admin-mark-btn ${current===k?"chosen":""}" data-attendee="${esc(x.key)}" data-value="${k}" aria-pressed="${current===k}" aria-label="${esc(label)}: ${esc(x.name)}">${k}</button>`).join("")}<button type="button" class="admin-mark-btn clear ${current===""?"chosen":""}" data-attendee="${esc(x.key)}" data-value="" aria-label="Șterge marcajul pentru ${esc(x.name)}">×</button></div>`:`<span class="tag">${esc(({P:"Prezent",M:"Motivat",N:"Nemotivat"})[current]||"Nemarcat")}</span>`;
@@ -1315,6 +1326,7 @@ function vAdmin(v){
     }).join("");
     host.innerHTML=`<section class="card"><div class="label">Prezența la Ținută</div>
       <label class="small muted" for="admin-date">Data ținutei</label><select id="admin-date">${dateOptions}</select>
+      <div id="admin-attendance-totals" role="status" aria-label="Totaluri prezență" style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 8px"></div>
       <div class="small muted" id="admin-message" aria-live="polite" style="margin:9px 0"> ${role==="secretar"?"Selectează starea fiecărui frate. Modificările sunt salvate în Google Sheets.":"Consultare; editarea este rezervată Secretarului."}</div>
       <div class="admin-attendance-legend" aria-label="Legenda prezențelor">
         <span><i style="background:#22c55e"></i>P · prezent</span>
@@ -1323,6 +1335,7 @@ function vAdmin(v){
         <span><i style="background:#ec4899"></i>× · necompletat</span>
       </div>
       <ul class="list">${rows}</ul></section>`;
+    renderAttendanceTotals();
     host.querySelector("#admin-date").onchange=e=>{S.adminDate=e.target.value;vAdmin(v)};
     if(role==="secretar")host.querySelectorAll(".admin-mark-btn").forEach(btn=>btn.onclick=async()=>{
       const group=btn.closest(".admin-mark-group");
@@ -1336,6 +1349,7 @@ function vAdmin(v){
       try{
         await S.api.attendanceSet({memberKey:btn.dataset.attendee,date:selectedDate,value:next});
         if(found)found.marks[index]=next;
+        renderAttendanceTotals();
         buttons.forEach(x=>{const chosen=x.dataset.value===next;x.classList.toggle("chosen",chosen);x.setAttribute("aria-pressed",String(chosen))});
         msg.textContent="Prezența a fost salvată.";
         S.api.bootstrap().then(d=>{S.data.presence=d.presence||[];build()}).catch(()=>{});
@@ -1749,7 +1763,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-15";
+const APP_VERSION="2026.10.20-16";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
