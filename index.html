@@ -1195,6 +1195,124 @@ function vLib(v){
   v.innerHTML=h;
 }
 
+
+/* ---------- Administrarea Lojii: operatii autorizate exclusiv in backend ---------- */
+function vAdmin(v){
+  if(!S.me.adminRole){v.innerHTML='<div class="state err">Acces nepermis.</div>';return}
+  if(!S.api.adminRead){v.innerHTML='<div class="state">Funcționalitatea este disponibilă doar în aplicația autentificată.</div>';return}
+  if(!S.adminData){
+    v.innerHTML='<div class="state">Se încarcă tabloul administrativ…</div>';
+    if(!S.adminBusy){
+      S.adminBusy=true;
+      S.api.adminRead().then(data=>{
+        S.adminData=data;S.adminBusy=false;
+        if(S.tab==="admin")vAdmin($("#view"));
+      }).catch(e=>{
+        S.adminBusy=false;
+        if(S.tab==="admin")$("#view").innerHTML='<div class="state err">Nu am putut încărca datele administrative. <button class="cta" id="admin-retry">Reîncearcă</button></div>';
+        const retry=$("#admin-retry");if(retry)retry.onclick=()=>{S.adminData=null;vAdmin($("#view"))};
+      });
+    }
+    return;
+  }
+  const data=S.adminData,role=S.me.adminRole;
+  const selected=S.adminMode||"attendance";
+  const formatMoney=n=>Number(n||0).toLocaleString("ro-RO",{maximumFractionDigits:2})+" lei";
+  const choices='<option value="">Selectează un frate</option>'+data.financial.map(x=>`<option value="${esc(x.key)}">${esc(x.name)}</option>`).join("");
+  const labels={secretar:"Secretariat",trezorier:"Trezorerie",mv:"Maestru Venerabil",secretar_zonal:"Secretariat Zonal"};
+  v.innerHTML=`<div class="card"><div class="label">Administrare · ${esc(labels[role]||"Consultare")}</div>
+      <p class="small muted" style="margin-bottom:0">Acces autorizat. Operațiunile sunt înscrise direct în registrele Google Sheets.</p></div>
+    <div class="seg" role="tablist">
+      <button role="tab" type="button" data-admin-mode="attendance" aria-selected="${selected==="attendance"}">Prezențe</button>
+      <button role="tab" type="button" data-admin-mode="finance" aria-selected="${selected==="finance"}">Trezorerie</button>
+    </div>
+    <div id="admin-body"></div>`;
+  v.querySelectorAll("[data-admin-mode]").forEach(b=>b.onclick=()=>{S.adminMode=b.dataset.adminMode;vAdmin(v)});
+  const host=v.querySelector("#admin-body");
+  if(selected==="attendance"){
+    const dates=data.dates||[];
+    const selectedDate=dates.includes(S.adminDate)?S.adminDate:(dates.find(x=>x===dates[0])||"");
+    S.adminDate=selectedDate;
+    const dateOptions=dates.map(d=>`<option value="${esc(d)}"${d===selectedDate?" selected":""}>${esc(d)}</option>`).join("");
+    const index=dates.indexOf(selectedDate);
+    const rows=(data.attendance||[]).map(x=>{
+      const current=x.marks[index]||"";
+      const control=role==="secretar"?`<select class="admin-mark" data-attendee="${esc(x.key)}" aria-label="Prezență ${esc(x.name)}"><option value=""${current===""?" selected":""}>Nemarcat</option>${[["P","Prezent"],["M","Motivat"],["N","Nemotivat"]].map(([k,l])=>`<option value="${k}"${k===current?" selected":""}>${l}</option>`).join("")}</select>`:`<span class="tag">${esc(({P:"Prezent",M:"Motivat",N:"Nemotivat"})[current]||"Nemarcat")}</span>`;
+      return `<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><span class="t">${esc(x.name)}</span>${control}</li>`;
+    }).join("");
+    host.innerHTML=`<section class="card"><div class="label">Prezența la Ținută</div>
+      <label class="small muted" for="admin-date">Data ținutei</label><select id="admin-date">${dateOptions}</select>
+      <div class="small muted" id="admin-message" aria-live="polite" style="margin:9px 0"> ${role==="secretar"?"Selectează starea fiecărui frate. Modificările sunt salvate în Google Sheets.":"Consultare; editarea este rezervată Secretarului."}</div>
+      <ul class="list">${rows}</ul></section>`;
+    host.querySelector("#admin-date").onchange=e=>{S.adminDate=e.target.value;vAdmin(v)};
+    if(role==="secretar")host.querySelectorAll(".admin-mark").forEach(select=>select.onchange=async()=>{
+      const previous=data.attendance.find(x=>x.key===select.dataset.attendee)?.marks[index]||"";
+      select.disabled=true;
+      const msg=host.querySelector("#admin-message");msg.textContent="Se salvează prezența…";
+      try{
+        await S.api.attendanceSet({memberKey:select.dataset.attendee,date:selectedDate,value:select.value});
+        const found=data.attendance.find(x=>x.key===select.dataset.attendee);
+        if(found)found.marks[index]=select.value;
+        msg.textContent="Prezența a fost salvată.";
+        // Reincarca si statisticile Pietrei fara a afecta datele private din cache.
+        S.api.bootstrap().then(d=>{S.data.presence=d.presence||[];build()}).catch(()=>{});
+      }catch(e){select.value=previous;msg.textContent="Salvarea a eșuat. Încearcă din nou."}
+      finally{select.disabled=false}
+    });
+  }else{
+    const list=(data.financial||[]).slice().sort((a,b)=>a.name.localeCompare(b.name,"ro"));
+    const curr=list.find(x=>x.key===S.adminMember)||list[0];
+    if(curr)S.adminMember=curr.key;
+    const opt=list.map(x=>`<option value="${esc(x.key)}"${x.key===S.adminMember?" selected":""}>${esc(x.name)}</option>`).join("");
+    const line=(name,obj)=>`<div class="finance-item"><strong>${esc(name)}</strong>
+      <div class="frow"><span class="muted">Valoare de referință</span><span>${formatMoney(obj.target)}</span></div>
+      <div class="frow"><span class="muted">Total achitat</span><span>${formatMoney(obj.paid)}</span></div>
+      <div class="frow"><span class="muted">Diferență</span><strong>${formatMoney(obj.remaining)}</strong></div>
+      <div class="small muted">${esc(obj.status||"")}</div></div>`;
+    const history=curr?.payments?.length?curr.payments.map(p=>`<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><div><div class="t">${esc(p.date)} · ${esc(p.component)}</div><div class="small muted">${esc(p.reference||"")}</div></div><strong>${formatMoney(p.amount)}</strong></li>`).join(""):'<li class="item">Nu există încă plăți înregistrate.</li>';
+    host.innerHTML=`<section class="card"><div class="label">Situație financiară nominală</div>
+      <label class="small muted" for="admin-member">Frate</label><select id="admin-member">${opt}</select>
+      ${curr?line("Metalele Lojii",curr.dues)+line("Gala Elitelor",curr.gala)+`<div class="frow"><span class="muted">Sponsorizări</span><strong>${formatMoney(curr.sponsorships)}</strong></div>`:""}
+      <div class="finance-item"><strong>Istoricul tranșelor</strong><ul class="list">${history}</ul></div></section>
+      ${role==="trezorier"? `<section class="card"><div class="label">Înregistrează încasare nouă</div>
+        <p class="small muted">Plățile în tranșe se adaugă ca rânduri separate; nu se suprascriu plățile anterioare.</p>
+        <label class="small muted" for="admin-category">Componentă</label>
+        <select id="admin-category"><option>Cotizație Lojă</option><option>Gala Elitelor</option><option>Sponsorizare</option></select>
+        <label class="small muted" for="admin-amount">Sumă primită (lei)</label>
+        <input id="admin-amount" type="number" min="0.01" max="1000000" step="0.01" inputmode="decimal" placeholder="Ex. 500">
+        <label class="small muted" for="admin-method">Modalitate</label>
+        <select id="admin-method"><option>Numerar</option><option>Transfer bancar</option></select>
+        <button class="primary" type="button" id="admin-payment-save" style="margin-top:14px">Confirmă încasarea</button>
+        <p class="small muted" id="admin-payment-message" aria-live="polite"></p>
+      </section>`:""}`;
+    host.querySelector("#admin-member").onchange=e=>{S.adminMember=e.target.value;vAdmin(v)};
+    if(role==="trezorier"){
+      const btn=host.querySelector("#admin-payment-save"),msg=host.querySelector("#admin-payment-message");
+      let pending=null;
+      ["admin-category","admin-amount","admin-method"].forEach(id=>host.querySelector("#"+id).onchange=()=>{pending=null});
+      btn.onclick=async()=>{
+        const amount=Number(host.querySelector("#admin-amount").value);
+        if(!Number.isFinite(amount)||amount<=0||amount>1000000||Math.round(amount*100)!==amount*100){msg.textContent="Introdu o sumă validă.";return}
+        const payload={memberKey:S.adminMember,category:host.querySelector("#admin-category").value,
+          amount:amount,method:host.querySelector("#admin-method").value};
+        if(!pending||pending.memberKey!==payload.memberKey||pending.category!==payload.category||pending.amount!==payload.amount||pending.method!==payload.method){
+          payload.paymentId="p_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2)+"_"+Math.random().toString(36).slice(2);
+          pending=payload;
+        }
+        btn.disabled=true;msg.textContent="Se înregistrează plata…";
+        try{
+          await S.api.paymentAdd(pending);
+          msg.textContent="Plata a fost înregistrată.";
+          pending=null;S.adminData=await S.api.adminRead();
+          try{const fresh=await S.api.bootstrap();S.data.finance=fresh.finance||null}catch(_){}
+          if(S.tab==="admin")vAdmin(v);
+        }catch(e){msg.textContent="Nu s-a confirmat salvarea. Reîncearcă fără să schimbi datele: aplicația va verifica identificatorul tranzacției."}
+        finally{btn.disabled=false}
+      };
+    }
+  }
+}
+
 function vBros(v){
   const cur=S.bview||"calatorii";
   const seg=`<div class="seg" role="tablist" aria-label="Vedere">${[["calatorii","Călătoriile fraților"],["loji","Loji din Zona V"]].map(([k,l])=>`<button type="button" role="tab" aria-selected="${cur===k}" data-segb="${k}">${l}</button>`).join("")}</div>`;
