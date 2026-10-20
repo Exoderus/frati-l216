@@ -1349,7 +1349,7 @@ function openDoc(id,name,mime,link,dlName){
     if(!alive)return;
     if(isImg){const u=URL.createObjectURL(blob);urls.push(u);box.innerHTML=`<img class="vimg" src="${u}" alt="${esc(name)}">`;return}
     if(isAudio){const u=URL.createObjectURL(blob.type?blob:new Blob([blob],{type:mime}));urls.push(u);box.innerHTML=`<div class="vaudio"><div class="vaudio-ico">${svg("audio",40,1.4)}</div><div class="vaudio-t">${esc(name)}</div><audio controls preload="auto" src="${u}"></audio></div>`;const a=box.querySelector("audio");a.play().catch(()=>{});return}
-    if(isDocx){const m=await loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js","mammoth");const r=await m.convertToHtml({arrayBuffer:await blob.arrayBuffer()});if(!alive)return;box.innerHTML=`<article class="vdoc">${r.value}</article>`;return}
+    if(isDocx){const [m,purify]=await Promise.all([loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js","mammoth"),loadScript("https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.6/purify.min.js","DOMPurify")]);if(!m||!purify||typeof purify.sanitize!=="function")throw new Error("Document viewer unavailable");const r=await m.convertToHtml({arrayBuffer:await blob.arrayBuffer()});if(!alive)return;const safeHtml=purify.sanitize(r.value,{USE_PROFILES:{html:true}});box.innerHTML=`<article class="vdoc">${safeHtml}</article>`;return}
     const lib=await loadPdfJs();
     const pdf=await lib.getDocument({data:await blob.arrayBuffer()}).promise;
     let zoom=1;
