@@ -1434,10 +1434,23 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-04";
+const APP_VERSION="2026.10.20-05";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
-  try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
+  try{
+    const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});
+    if(!r.ok)return;
+    const j=await r.json();
+    if(!j.version||j.version===APP_VERSION)return;
+    // Protectie contra buclelor de reload provocate de cache/CDN desincronizat.
+    const key="l216.reload.target";
+    const last=sessionStorage.getItem(key);
+    if(last===String(j.version))return;
+    sessionStorage.setItem(key,String(j.version));
+    const url=new URL(location.href);
+    url.searchParams.set("appv",String(j.version));
+    location.replace(url.toString());
+  }catch(_){}
 }
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkVersion()});
 setInterval(checkVersion,15*60*1000);
