@@ -581,7 +581,7 @@ const S={api:null,me:null,tab:"home",data:{},err:{},loading:true};
 const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situația mea","me"],["lib","Bibliotecă","lib"],["bros","Loji","temple"]];
 
 /* ============ ÎNCĂRCARE ============ */
-async function loadAll(){
+async function loadAll(forceFresh=false){
   const A=S.api,t0=today(),to=new Date(t0);to.setDate(to.getDate()+60);
   if(A.bootstrap){
     const CK="l216.cache."+(S.me.email||"");
@@ -601,17 +601,20 @@ async function loadAll(){
     };
     // 1) afișare imediată din ultima versiune salvată pe acest dispozitiv
     let cached=null;try{cached=JSON.parse(localStorage.getItem(CK)||"null")}catch(_){}
-    if(cached){apply(cached,true);S.loading=false;build()}
+    if(cached&&!forceFresh){apply(cached,true);S.loading=false;build()}
     // 2) date proaspete în fundal
     try{
       const d=await A.bootstrap();
       apply(d);refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
     }catch(e){
-      if(e.status===401){store.del(AUTH_KEY);startLogin(true);return}
+      if(e.status===401){store.del(AUTH_KEY);startLogin(true);return false}
       if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
+      else if(forceFresh)return false; // păstrăm datele afișate dacă reîmprospătarea a eșuat
       else if(!cached)S.err.roster=e;
     }
-    S.loading=false;build();refreshOpenFinanceDetails();return;
+    if(forceFresh)S.adminData=null; // tablourile administrative se citesc din nou din server
+    S.lastDataRefresh=Date.now();
+    S.loading=false;build();refreshOpenFinanceDetails();return true;
   }
   const jobs={
     roster:()=>A.sheet(CONFIG.SHEETS.roster,"'Frați activi'!A4:L200"),
@@ -1763,7 +1766,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-18";
+const APP_VERSION="2026.10.20-19";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
@@ -1781,8 +1784,21 @@ async function checkVersion(){
     location.replace(url.toString());
   }catch(_){}
 }
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkVersion()});
+/* Datele se actualizează fără delogare, fără reluarea fluxului OAuth.
+   Cache-ul local rămâne doar pentru pornire; fiecare refresh solicită bootstrap nou. */
+async function refreshLiveData(){
+  if(!S.api||S.api.mode!=="google"||S.loading||S.dataRefreshBusy||document.visibilityState!=="visible")return;
+  if(document.querySelector(".viewer")||S.adminBusy)return; // nu întrerupem un document/modal sau o operațiune admin
+  if(Date.now()-(S.lastDataRefresh||0)<5*60*1000)return;
+  S.dataRefreshBusy=true;
+  try{await loadAll(true)}catch(_){}
+  finally{S.dataRefreshBusy=false}
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible"){checkVersion();refreshLiveData()}
+});
 setInterval(checkVersion,15*60*1000);
+setInterval(refreshLiveData,60*1000);
 
 checkVersion();boot();
 </script>
