@@ -355,7 +355,13 @@ function paymentHistory_(rows, key) {
   return rows.filter(r => memberKeyFromFull_(r[1]) === key).map(r => ({
     date: r[0], component: r[2], amount: moneyNum_(r[3]),
     reference: r[4] || "", notes: r[5] || ""
-  })).sort((a,b) => String(b.date).localeCompare(String(a.date)));
+  })).sort((a,b) => {
+    const stamp=s=>{
+      const m=/^(\d{2})\.(\d{2})\.(\d{4})/.exec(String(s||""));
+      return m?Number(m[3]+m[2]+m[1]):0;
+    };
+    return stamp(b.date)-stamp(a.date);
+  });
 }
 function adminRead_(me) {
   const denied = adminRequired_(me); if (denied) return denied;
