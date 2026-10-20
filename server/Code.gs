@@ -213,7 +213,7 @@ function bootstrap_(me, email) {
   try {
     // Aceleasi citiri si aceeasi ordine ca in versiunea functionala.
     const roster = bootstrapTimed_("roster", () => rosterRows_().map(r => {
-      const b = /^(\\d{1,2})\\.(\\d{1,2})\\./.exec(r[3]);
+      const b = /^(\d{1,2})\.(\d{1,2})\./.exec(r[3]);
       return [r[0], r[1], r[2], b ? b[1] + "." + b[2] + ".2000" : "", r[4], r[5], "", "", "", "", "", r[11]];
     }), metrics);
     const fisa = bootstrapTimed_("member_profile", () => fisa_(me.key), metrics);
