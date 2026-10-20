@@ -857,6 +857,10 @@ function piatraMeaCard(me){
   if(!s.viz)miss.push("vizita anuală");
   if(!s.pl)miss.push("planșa anului");
   const rest=F-s.lov;
+  const nextStep=[[6,"Piatră cioplită"],[12,"Piatră fasonată"],[18,"Piatră netezită"],[24,"Piatră cubică"]].find(([n])=>s.lov<n);
+  const nextText=s.perfect?"Ai desăvârșit piatra."
+    :nextStep?`Încă ${nrDe(nextStep[0]-s.lov,"lovitură de ciocan","lovituri de ciocan","o")} până la ${nextStep[1].toLowerCase()}.`
+    :"Ai adunat cele 24 de lovituri; mai rămân condițiile de îndeplinit.";
   const msg=s.perfect?"Piatra ta e desăvârșită pentru anul acesta."
     :rest>0?`Mai ai ${nrDe(rest,"lovitură de ciocan","lovituri de ciocan","o")} până la piatra perfectă.`
     :`Ai adunat loviturile. Îți mai ${miss.length>1?"lipsesc":"lipsește"} ${miss.length>1?miss.slice(0,-1).join(", ")+" și "+miss[miss.length-1]:miss[0]}.`;
@@ -871,7 +875,8 @@ function piatraMeaCard(me){
     <div class="mine-top">${stoneHTML("stone-me",s.frame,lab)}
       <div class="tr">${esc(s.treapta)}</div><div class="n"><b>${s.lov}</b> / ${F} lovituri de ciocan</div>
       <div class="bar"><i style="width:${Math.min(100,Math.round(s.lov/F*100))}%"></i></div>
-      <p class="msg">${esc(msg)}</p></div>
+      <p class="msg" style="color:var(--gold);font-weight:600">${esc(nextText)}</p>
+      <p class="small muted" style="margin:6px 0 0">${esc(msg)}</p></div>
     <ul class="conds" aria-label="Condițiile pietrei perfecte">${conds.map(([ok,t,sub,c])=>`<li><span class="mk${ok?" ok":""}" role="img" aria-label="${ok?"îndeplinită":"neîndeplinită"}">${ok?ck:""}</span><div><div class="t">${esc(t)}</div><div class="s">${esc(sub)}</div></div><span class="c">${esc(c)}</span></li>`).join("")}</ul>
     <p class="small muted" style="margin:12px 0 0">Doar tu vezi piatra ta.</p></section>`;
 }
@@ -883,6 +888,17 @@ function openLucrare(){
   const steps=[[Math.ceil(L*.25),"Piatră cioplită"],[Math.ceil(L*.5),"Piatră fasonată"],[Math.ceil(L*.75),"Piatră netezită"],[L,"Piatră cubică"]];
   const nx=steps.find(x=>P.lov<x[0]);
   const plus=n=>`<span class="lp-plus">+${n}</span>`;
+  // Jurnal informativ: toate plansele eligibile din anul masonic, fara plafonul de punctaj.
+  const supportedPlates=P.plates.filter(p=>{
+    const where=normRo(p.unde);
+    const published=/^(da|publicat|publicata|publicată|yes)$/i.test(String(p.site||"").trim());
+    return /tinuta|prezentat|sustinut|vizita/.test(where)||published;
+  }).slice().sort((a,b)=>(b.d||0)-(a.d||0));
+  const platesList=supportedPlates.map(p=>{
+    const date=p.d?fmtShort(p.d):"";
+    const details=[p.who,date,p.unde].filter(Boolean).join(" · ");
+    return `<li class="item"><div><div class="t">${esc(p.titlu)}</div><div class="s">Fr∴ ${esc(details)}</div></div></li>`;
+  }).join("");
   const rec=P.groups.slice(0,10).map(g=>{const d=g.d?fmtShort(g.d):"";let t,s;
     if(g.kind==="t"){t="Ținuta din "+d;s=nrDe(g.n,"frate prezent","frați prezenți","un")}
     else if(g.kind==="v"){t="Vizită"+(g.loc?" la "+g.loc:" la o lojă soră");s=nrDe(g.n,"frate","frați","un")}
@@ -907,6 +923,8 @@ function openLucrare(){
       <li><span>Vizita la o lojă soră <span class="small muted">(max. ${PIATRA.VIZ_MAX} pe an)</span></span><b>3 lovituri</b></li>
       <li><span>Planșa, în Lojă sau pentru site <span class="small muted">(max. ${PIATRA.PL_MAX} pe an)</span></span><b>5 lovituri</b></li>
     </ul><p class="lp-note">Minutul de regularitate nu intră la planșe. Fiecare frate aduce cel mult ${PIATRA.FULL} de lovituri pietrei Lojii; piatra devine cubică la ${L}. Anul masonic începe din nou la 1 septembrie.</p></div>
+    <div class="sec-title">Planșe susținute</div>
+    ${platesList?`<div class="card"><ul class="list">${platesList}</ul></div>`:`<div class="state">Nu sunt încă planșe susținute înregistrate pentru acest an masonic.</div>`}
     <div class="sec-title">Ultimele lovituri</div>
     ${rec?`<div class="card"><ul class="list">${rec}</ul></div>`:`<div class="state">Încă nicio lovitură în acest an.</div>`}
     <button class="primary" type="button" id="lmine">Vezi piatra mea</button>
@@ -1292,7 +1310,7 @@ function openPlanForm({l=-1,date="",ev=null}={}){
     }catch(e){btn.disabled=false;btn.textContent=ev?"Merg":"Anunță vizita";err.textContent=e.detail||(e.status===401?"Sesiunea a expirat. Reîncarcă pagina.":"Nu s-a putut trimite. Verifică conexiunea și încearcă din nou.")}
   };
 }
-function normRo(t){return String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
+function normRo(t){return String(t||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ")}
 function vLoji(q){
   if(S.err.lodges)return sectionErr("lodges","Lista lojilor");
   if(!M.lodges.length)return `<div class="state">Lista lojilor din Zona V va apărea aici.</div>`;
@@ -1416,7 +1434,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-03";
+const APP_VERSION="2026.10.20-04";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;const j=await r.json();if(j.version&&j.version!==APP_VERSION)location.reload()}catch(_){}
