@@ -97,6 +97,12 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .finance-accordion[open] .finance-accordion-chevron{transform:rotate(180deg)}
 .finance-accordion-content{padding:0 12px 14px;border-top:1px solid var(--line)}
 .finance-accordion-content>.card{margin:0!important;border:0;box-shadow:none;padding:10px 2px 0}
+.admin-mark-group{display:flex;align-items:center;gap:4px}
+.admin-mark-btn{min-width:34px;min-height:37px;padding:6px 5px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--fg);font-weight:700;cursor:pointer}
+.admin-mark-btn.chosen{background:var(--gold);color:#101827;border-color:var(--gold)}
+.admin-mark-btn:disabled{opacity:.5;cursor:wait}
+.admin-mark-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.admin-mark-btn.clear{color:var(--muted)}
 .finance-item{padding-top:12px;margin-top:10px;border-top:1px solid var(--line)}
 .finance-item-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px;margin-bottom:8px}
 .finance-badge{display:inline-block;padding:4px 9px;border-radius:999px;font-size:11px;line-height:1.25;font-weight:600;background:var(--line);color:var(--fg)}
@@ -1238,7 +1244,7 @@ function vAdmin(v){
     const index=dates.indexOf(selectedDate);
     const rows=(data.attendance||[]).map(x=>{
       const current=x.marks[index]||"";
-      const control=role==="secretar"?`<select class="admin-mark" data-attendee="${esc(x.key)}" aria-label="Prezență ${esc(x.name)}"><option value=""${current===""?" selected":""}>Nemarcat</option>${[["P","Prezent"],["M","Motivat"],["N","Nemotivat"]].map(([k,l])=>`<option value="${k}"${k===current?" selected":""}>${l}</option>`).join("")}</select>`:`<span class="tag">${esc(({P:"Prezent",M:"Motivat",N:"Nemotivat"})[current]||"Nemarcat")}</span>`;
+      const control=role==="secretar"?`<div class="admin-mark-group" role="group" aria-label="Prezență ${esc(x.name)}">${[["P","Prezent"],["M","Motivat"],["N","Nemotivat"]].map(([k,label])=>`<button type="button" class="admin-mark-btn ${current===k?"chosen":""}" data-attendee="${esc(x.key)}" data-value="${k}" aria-pressed="${current===k}" aria-label="${esc(label)}: ${esc(x.name)}">${k}</button>`).join("")}<button type="button" class="admin-mark-btn clear ${current===""?"chosen":""}" data-attendee="${esc(x.key)}" data-value="" aria-label="Șterge marcajul pentru ${esc(x.name)}">×</button></div>`:`<span class="tag">${esc(({P:"Prezent",M:"Motivat",N:"Nemotivat"})[current]||"Nemarcat")}</span>`;
       return `<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><span class="t">${esc(x.name)}</span>${control}</li>`;
     }).join("");
     host.innerHTML=`<section class="card"><div class="label">Prezența la Ținută</div>
@@ -1246,19 +1252,23 @@ function vAdmin(v){
       <div class="small muted" id="admin-message" aria-live="polite" style="margin:9px 0"> ${role==="secretar"?"Selectează starea fiecărui frate. Modificările sunt salvate în Google Sheets.":"Consultare; editarea este rezervată Secretarului."}</div>
       <ul class="list">${rows}</ul></section>`;
     host.querySelector("#admin-date").onchange=e=>{S.adminDate=e.target.value;vAdmin(v)};
-    if(role==="secretar")host.querySelectorAll(".admin-mark").forEach(select=>select.onchange=async()=>{
-      const previous=data.attendance.find(x=>x.key===select.dataset.attendee)?.marks[index]||"";
-      select.disabled=true;
+    if(role==="secretar")host.querySelectorAll(".admin-mark-btn").forEach(btn=>btn.onclick=async()=>{
+      const group=btn.closest(".admin-mark-group");
+      const buttons=[...group.querySelectorAll(".admin-mark-btn")];
+      const found=data.attendance.find(x=>x.key===btn.dataset.attendee);
+      const previous=found?.marks[index]||"";
+      const next=btn.dataset.value;
+      if(previous===next)return;
+      buttons.forEach(x=>x.disabled=true);
       const msg=host.querySelector("#admin-message");msg.textContent="Se salvează prezența…";
       try{
-        await S.api.attendanceSet({memberKey:select.dataset.attendee,date:selectedDate,value:select.value});
-        const found=data.attendance.find(x=>x.key===select.dataset.attendee);
-        if(found)found.marks[index]=select.value;
+        await S.api.attendanceSet({memberKey:btn.dataset.attendee,date:selectedDate,value:next});
+        if(found)found.marks[index]=next;
+        buttons.forEach(x=>{const chosen=x.dataset.value===next;x.classList.toggle("chosen",chosen);x.setAttribute("aria-pressed",String(chosen))});
         msg.textContent="Prezența a fost salvată.";
-        // Reincarca si statisticile Pietrei fara a afecta datele private din cache.
         S.api.bootstrap().then(d=>{S.data.presence=d.presence||[];build()}).catch(()=>{});
-      }catch(e){select.value=previous;msg.textContent="Salvarea a eșuat. Încearcă din nou."}
-      finally{select.disabled=false}
+      }catch(e){msg.textContent="Salvarea a eșuat. Încearcă din nou."}
+      finally{buttons.forEach(x=>x.disabled=false)}
     });
   }else{
     const list=(data.financial||[]).slice().sort((a,b)=>a.name.localeCompare(b.name,"ro"));
@@ -1293,7 +1303,7 @@ function vAdmin(v){
       ["admin-category","admin-amount","admin-method"].forEach(id=>host.querySelector("#"+id).onchange=()=>{pending=null});
       btn.onclick=async()=>{
         const amount=Number(host.querySelector("#admin-amount").value);
-        if(!Number.isFinite(amount)||amount<=0||amount>1000000||Math.round(amount*100)!==amount*100){msg.textContent="Introdu o sumă validă.";return}
+        if(!Number.isFinite(amount)||amount<=0||amount>1000000||Math.abs(Math.round(amount*100)-amount*100)>1e-6){msg.textContent="Introdu o sumă validă.";return}
         const payload={memberKey:S.adminMember,category:host.querySelector("#admin-category").value,
           amount:amount,method:host.querySelector("#admin-method").value};
         if(!pending||pending.memberKey!==payload.memberKey||pending.category!==payload.category||pending.amount!==payload.amount||pending.method!==payload.method){
