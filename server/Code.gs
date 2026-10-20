@@ -423,13 +423,72 @@ function planCancel_(email, id) {
   return { ok: true, plans: plans_(email) };
 }
 
-/* ---------- fișiere ---------- */
+/* ---------- autorizare live a fisierelor ----------
+   Catalogul poate ramane in cache pentru navigare. La deschiderea unui document
+   controlam locatia curenta din Drive si gradul fratelui, nu lista memorata.
+   Structura acceptata este identica cu catalog_(): radacina bibliotecii, un
+   singur subfolder al bibliotecii, Minutul si folderele de Tinute. */
+function folderAllowedNow_(folderId, level, name, mime) {
+  if (folderId === CFG.FOLDERS.library) return true;
+  if (folderId === CFG.FOLDERS.minutul) return released_(name);
+  let folder;
+  try { folder = DriveApp.getFolderById(folderId); } catch (_) { return false; }
+  const parents = folder.getParents();
+  while (parents.hasNext()) {
+    const p = parents.next().getId();
+    if (p === CFG.FOLDERS.library) return folderLevel_(folder.getName()) <= level;
+    if (p === CFG.FOLDERS.tinute) return isTinutaFolder_({ name: folder.getName(), mimeType: "application/vnd.google-apps.folder" })
+      && isTinutaDoc_({ name: name, mimeType: mime });
+  }
+  return false;
+}
+function fileAllowedNow_(f, level, cat) {
+  const id = f.getId(), name = f.getName(), mime = f.getMimeType();
+  if (HIDDEN_().indexOf(id) >= 0) return false;
+  let direct = false, forbiddenPlacement = false;
+  const parents = f.getParents();
+  while (parents.hasNext()) {
+    const pid = parents.next().getId();
+    if (folderAllowedNow_(pid, level, name, mime)) direct = true;
+    // Un document mutat intr-un folder de grad superior nu se livreaza
+    // printr-un shortcut eventual ramas in alt folder.
+    const restricted = pid !== CFG.FOLDERS.library && pid !== CFG.FOLDERS.minutul
+      && !folderAllowedNow_(pid, 3, name, mime);
+    if (restricted) {
+      try {
+        const folder = DriveApp.getFolderById(pid);
+        const anc = folder.getParents();
+        while (anc.hasNext()) {
+          if (anc.next().getId() === CFG.FOLDERS.library && folderLevel_(folder.getName()) > level)
+            forbiddenPlacement = true;
+        }
+      } catch (_) {}
+    }
+    if (pid === CFG.FOLDERS.minutul && !released_(name)) forbiddenPlacement = true;
+  }
+  if (forbiddenPlacement) return false;
+  if (direct) return true;
+  // Pentru fisierele accesate prin shortcuts, verificam shortcutul LIVE.
+  // O intrare ramasa doar in catalogul cache nu ofera acces.
+  const entries = [].concat(cat.tinuteFiles || [], cat.minutul || [], cat.libTop || [], cat.libFiles || []);
+  const folders = [...new Set(entries.filter(x => x.id === id && x.parent).map(x => x.parent))];
+  for (const pid of folders) {
+    if (!folderAllowedNow_(pid, level, name, mime)) continue;
+    try {
+      const it = DriveApp.getFolderById(pid).getFiles();
+      while (it.hasNext()) {
+        const candidate = it.next();
+        if (candidate.getMimeType() === "application/vnd.google-apps.shortcut"
+            && candidate.getTargetId() === id) return true;
+      }
+    } catch (_) {}
+  }
+  return false;
+}
 function file_(id, level) {
   if (!/^[\w-]{10,}$/.test(id)) return { error: "bad_request" };
-  // Controlul de grad ramane per solicitare in member_(). Catalogul are TTL 5 minute.
-  const allowed = catalogAllowedIds_(catalogCached_(level));
-  if (allowed.indexOf(id) < 0) return { error: "forbidden" };
   const f = DriveApp.getFileById(id);
+  if (!fileAllowedNow_(f, level || 1, catalogCached_(level))) return { error: "forbidden" };
   const mime = f.getMimeType();
   const blob = /^application\/vnd\.google-apps\./.test(mime) ? f.getAs("application/pdf") : f.getBlob();
   return { name: f.getName(), mime: blob.getContentType(), b64: Utilities.base64Encode(blob.getBytes()) };
