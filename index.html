@@ -585,13 +585,13 @@ async function loadAll(){
     // 2) date proaspete în fundal
     try{
       const d=await A.bootstrap();
-      apply(d);try{const cachedData={...d};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
+      apply(d);refreshOpenFinanceDetails();try{const cachedData={...d};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
     }catch(e){
       if(e.status===401){store.del(AUTH_KEY);startLogin(true);return}
       if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
       else if(!cached)S.err.roster=e;
     }
-    S.loading=false;build();return;
+    S.loading=false;build();refreshOpenFinanceDetails();return;
   }
   const jobs={
     roster:()=>A.sheet(CONFIG.SHEETS.roster,"'Frați activi'!A4:L200"),
@@ -1105,6 +1105,12 @@ function financeMe(){
     <p class="small muted" style="margin-top:12px"><strong>*</strong> Pentru componentele încă neaprobate, valorile sunt cele de anul trecut și au caracter orientativ. Valorile aprobate sunt preluate din registrul actualizat.</p>
   </section>`;
 }
+// Actualizează doar conținutul panoului deja deschis. Păstrează scrollul
+// și starea extinsă/închisă; nu recreează fereastra sau animația pietrei.
+function refreshOpenFinanceDetails(){
+  const root=document.querySelector(".viewer .finance-accordion-content");
+  if(root)root.innerHTML=financePublic();
+}
 function financePublic(){
   const f=S.data.finance;
   const bros=M.bros||[];
@@ -1525,7 +1531,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-09";
+const APP_VERSION="2026.10.20-10";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
