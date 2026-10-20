@@ -958,7 +958,7 @@ function openLucrare(){
       <div class="tr">${esc(P.treapta)}</div><div class="n"><b>${P.lov}</b> / ${L} lovituri</div>
       <div class="bar"><i style="width:${Math.min(100,Math.round(P.lov/L*100))}%"></i></div>
       <div class="nx">${nx?`Până la ${nx[1].toLowerCase()}: încă ${nLov(nx[0]-P.lov)}`:"Piatra Lojii e desăvârșită pentru anul acesta."}</div></div>
-    <div class="sec-title">De unde vin loviturile</div>
+    <div class="sec-title">Contribuția fiecărei activități</div>
     <div class="lp-src">
       <div class="card"><div class="label">Ținute</div><div class="v">${P.src.t}</div><div class="s">din ținute</div></div>
       <div class="card"><div class="label">Vizite</div><div class="v">${P.src.v}</div><div class="s">din ${nrDe(P.src.nv,"vizită","vizite","o")}</div></div>
@@ -1763,7 +1763,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-16";
+const APP_VERSION="2026.10.20-17";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
