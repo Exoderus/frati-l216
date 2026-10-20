@@ -42,6 +42,9 @@ function doPost(e) {
     if (req.action === "file") return json_(file_(String(req.id || ""), level_(me.grad)));
     if (req.action === "plan_add") return json_(planAdd_(me, who.email, req));
     if (req.action === "plan_cancel") return json_(planCancel_(who.email, String(req.id || "")));
+    if (req.action === "admin_read") return json_(adminRead_(me));
+    if (req.action === "attendance_set") return json_(attendanceSet_(me, who.email, req));
+    if (req.action === "payment_add") return json_(paymentAdd_(me, who.email, req));
     return json_({ error: "bad_request" });
   } catch (err) {
     return json_({ error: "server", message: String(err && err.message || err) });
@@ -78,7 +81,8 @@ function member_(email) {
   const rows = rosterRows_();
   const r = rows.find(x => String(x[10]).trim().toLowerCase() === email) || rows.find(x => String(x[9]).trim().toLowerCase() === email);
   if (!r || norm_(r[12]) !== "activ") return null;
-  return { key: key_(r[1], r[2]), row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4] };
+  const k=key_(r[1],r[2]);
+  return { key: k, row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4], functie: r[5], demnitar: r[6], uniqueIdentity: rows.filter(x=>norm_(x[12])==="activ"&&key_(x[1],x[2])===k).length===1 };
 }
 
 /* ---------- jurnal de acces ---------- */
@@ -308,9 +312,153 @@ function finance_(me) {
     mine: own ? {
       dues: { target: own[2], paid: own[3], difference: own[4], status: normStatus(own[5], voteDues) },
       gala: { target: own[6], paid: own[7], difference: own[8], status: normStatus(own[9], voteGala) },
-      sponsorships: own[10]
+      sponsorships: own[10],
+      payments: paymentHistory_(paymentRows_(),me.key)
     } : null
   };
+}
+
+
+/* ---------- administrare: roluri explicite pe identitatea din registru ----------
+   Niciun rol nu este acceptat din request. Fiecare actiune verifica membrul
+   activ si rolul in backend. Mircea Ursu are consultare, nu editare. */
+function adminRole_(me) {
+  const roles = {
+    "coca|mihai": "secretar",
+    "rosu|silviu": "mv",
+    "ursu|mircea": "secretar_zonal",
+    "beschiu|ovidiu": "trezorier",
+    "simu|horia": "demnitar_mlnr",
+    "mihalache|richard": "demnitar_mlnr",
+    "hossu|andrei": "demnitar_mlnr",
+    "bartos|adrian": "demnitar_mlnr",
+    "paun|ciprian": "demnitar_mlnr",
+    "savus|cristian": "demnitar_mlnr"
+  };
+  if(!me || !me.uniqueIdentity) return "";
+  const role=roles[me.key]||"";
+  const office=norm_(me.functie);
+  if(role==="secretar" && office!=="secretar")return "";
+  if(role==="trezorier" && office!=="trezorier")return "";
+  if(role==="mv" && office!=="maestru venerabil")return "";
+  // Calitatea de demnitar trebuie să fie înregistrată și în coloana G.
+  if(role==="demnitar_mlnr"&&!String(me.demnitar||"").trim())return "";
+  if(role==="secretar_zonal"&&norm_(me.demnitar)!=="secretar zonal")return "";
+  return role;
+}
+function adminRequired_(me, role) {
+  const current = adminRole_(me);
+  if (!current || (role && current !== role)) return { error: "forbidden" };
+  return null;
+}
+function memberKeyFromFull_(name) {
+  const words = norm_(name).split(/\s+/).filter(Boolean);
+  return words.length > 1 ? words[0] + "|" + words[1] : "";
+}
+function moneyNum_(text) {
+  const raw = String(text == null ? "" : text).trim();
+  if (!raw) return 0;
+  const cleaned = raw.replace(/\s|lei/gi, "").replace(/\./g, "").replace(",", ".");
+  const value = Number(cleaned);
+  return Number.isFinite(value) ? value : 0;
+}
+function paymentRows_() {
+  const sh = SpreadsheetApp.openById(CFG.SHEETS.dues).getSheetByName("Plăți");
+  return sh.getRange(5, 1, Math.max(1, sh.getLastRow() - 4), 9).getDisplayValues()
+    .filter(r => r[1] && r[2] && r[3]);
+}
+function paymentHistory_(rows, key) {
+  return rows.filter(r => memberKeyFromFull_(r[1]) === key).map(r => ({
+    date: r[0], component: r[2], amount: moneyNum_(r[3]),
+    reference: r[4] || "", notes: r[5] || ""
+  })).sort((a,b) => {
+    const stamp=s=>{
+      const m=/^(\d{2})\.(\d{2})\.(\d{4})/.exec(String(s||""));
+      return m?Number(m[3]+m[2]+m[1]):0;
+    };
+    return stamp(b.date)-stamp(a.date);
+  });
+}
+function adminRead_(me) {
+  const denied = adminRequired_(me); if (denied) return denied;
+  const sh = SpreadsheetApp.openById(CFG.SHEETS.presence).getSheetByName("Registru prezență");
+  const grid = sh.getRange("A5:AZ200").getDisplayValues();
+  const headers = grid[0] || [];
+  const dates = headers.map((v,i) => ({name:v,index:i}))
+    .filter(x => /^\d{2}\.\d{2}\.\d{2,4}$/.test(String(x.name).trim()));
+  const members = grid.slice(1).filter(r => /^\d+$/.test(String(r[0]||"").trim()) && r[1])
+    .map(r => ({key:key_(r[1],r[2]),name:r[1]+" "+r[2],marks:dates.map(d=>r[d.index]||"")}));
+  const financeSheet = SpreadsheetApp.openById(CFG.SHEETS.dues).getSheetByName("Situație frați");
+  const financeRows = financeSheet.getRange("A5:K200").getDisplayValues()
+    .filter(r => /^\d+$/.test(String(r[0]||"").trim()) && r[1]);
+  const payments = paymentRows_();
+  const financial = financeRows.map(r => {
+    const key = memberKeyFromFull_(r[1]);
+    return { key:key,name:r[1],
+      dues:{target:moneyNum_(r[2]),paid:moneyNum_(r[3]),remaining:moneyNum_(r[4]),status:r[5]},
+      gala:{target:moneyNum_(r[6]),paid:moneyNum_(r[7]),remaining:moneyNum_(r[8]),status:r[9]},
+      sponsorships:moneyNum_(r[10]),payments:paymentHistory_(payments,key) };
+  });
+  return {role:adminRole_(me),dates:dates.map(d=>d.name),attendance:members,financial:financial};
+}
+function attendanceSet_(me, email, req) {
+  const denied = adminRequired_(me,"secretar");if (denied) return denied;
+  const value = String(req.value||"").toUpperCase();
+  if (["P","M","N",""].indexOf(value) < 0) return {error:"bad_request"};
+  const key = String(req.memberKey||""), date = String(req.date||"");
+  if (!key || !/^\d{2}\.\d{2}\.\d{2,4}$/.test(date)) return {error:"bad_request"};
+  const lock=LockService.getScriptLock();if(!lock.tryLock(15000))return {error:"server",message:"Datele sunt actualizate de alt operator."};
+  try {
+    const ss=SpreadsheetApp.openById(CFG.SHEETS.presence);
+    const sh=ss.getSheetByName("Registru prezență");
+    const headers=sh.getRange("A5:AZ5").getDisplayValues()[0];
+    const ix=headers.findIndex(x=>String(x).trim()===date);
+    if(ix<7)return {error:"bad_request"};
+    const rows=sh.getRange("A6:C200").getDisplayValues();
+    const targets=rows.map((r,i)=>({r,n:i+6})).filter(x=>/^\d+$/.test(String(x.r[0]||"").trim())&&key_(x.r[1],x.r[2])===key);
+    if(targets.length!==1)return {error:"bad_request"};
+    const cell=sh.getRange(targets[0].n,ix+1);
+    const before=String(cell.getDisplayValue()||"").trim().toUpperCase();
+    if(!["P","M","N",""].includes(before))return {error:"bad_request"};
+    if(before===value)return {ok:true,unchanged:true};
+    let journal=ss.getSheetByName("Jurnal aplicație");
+    if(!journal){journal=ss.insertSheet("Jurnal aplicație");journal.appendRow(["Moment","Operator","Frate","Ținută","Anterior","Nou"]);}
+    // Jurnal mai intai; daca scrierea celulei esueaza se raporteaza eroare.
+    journal.appendRow([new Date(),email,targets[0].r[1]+" "+targets[0].r[2],date,before,value]);
+    cell.setValue(value);
+    CacheService.getScriptCache().remove("sh1_presence");
+    return {ok:true,memberKey:key,date:date,value:value};
+  } finally {lock.releaseLock();}
+}
+function paymentAdd_(me,email,req) {
+  const denied=adminRequired_(me,"trezorier");if(denied)return denied;
+  const id=String(req.paymentId||"");
+  if(!/^[a-zA-Z0-9_-]{20,100}$/.test(id))return {error:"bad_request"};
+  const key=String(req.memberKey||""),category=String(req.category||"");
+  if(["Cotizație Lojă","Gala Elitelor","Sponsorizare"].indexOf(category)<0)return {error:"bad_request"};
+  const amount=Number(req.amount);
+  if(!Number.isFinite(amount)||amount<=0||amount>1000000||Math.abs(Math.round(amount*100)-amount*100)>1e-6)return {error:"bad_request"};
+  const method=String(req.method||"Numerar");
+  if(["Numerar","Transfer bancar"].indexOf(method)<0)return {error:"bad_request"};
+  // Plata se poate primi de la orice frate înscris în registru, chiar dacă
+  // nu și-a activat încă accesul la aplicație; operatorul rămâne autorizat separat.
+  const roster=rosterRows_().filter(r=>key_(r[1],r[2])===key);
+  if(roster.length!==1)return {error:"bad_request"};
+  const name=roster[0][1]+" "+String(roster[0][2]).trim();
+  const lock=LockService.getScriptLock();if(!lock.tryLock(15000))return {error:"server",message:"Operațiune în curs, reîncearcă."};
+  try{
+    const sh=SpreadsheetApp.openById(CFG.SHEETS.dues).getSheetByName("Plăți");
+    const n=sh.getLastRow();
+    if(n>=5){
+      const ids=sh.getRange(5,7,n-4,1).getDisplayValues().map(r=>r[0]);
+      if(ids.indexOf(id)>=0)return {ok:true,duplicate:true,paymentId:id};
+    }
+    const next=n+1;
+    sh.getRange(next,1,1,9).setValues([[new Date(),name,category,amount,method,"Înregistrat din aplicație",id,email,new Date()]]);
+    sh.getRange(next,1).setNumberFormat("dd.MM.yyyy HH:mm");
+    SpreadsheetApp.flush();
+    return {ok:true,paymentId:id};
+  }finally{lock.releaseLock();}
 }
 
 /* Masuratori anonime, exclusiv in jurnalul Apps Script; schema raspunsului nu se schimba. */
@@ -337,7 +485,7 @@ function bootstrap_(me, email) {
     const lodges = bootstrapTimed_("lodges", () => sharedCached_("lodges", 1800, () => values_(CFG.SHEETS.lodges, "A2:J100")), metrics);
     const news = bootstrapTimed_("news", () => sharedCached_("news", 300, () => values_(CFG.SHEETS.news, "A2:E300")), metrics);
     const out = {
-      me: { email: email, key: me.key, fisa: fisa },
+      me: { email: email, key: me.key, fisa: fisa, adminRole: adminRole_(me) },
       roster: roster,
       presence: presence,
       visits: visits,
