@@ -1221,7 +1221,9 @@ function vLib(v){
   M.lib.filter(g=>g.files.length).forEach(g=>{
     const body=g.subs?g.subs.filter(x=>x.files.length).map(x=>`<div class="fold-sub">${esc(x.name)}</div>${li(x.files)}`).join(""):li(g.files);
     // doar audio și candidații stau în dosar pliabil; restul secțiunilor rămân deschise, ca înainte
-    if(!g.subs&&!/candida/i.test(g.name)){h+=`<div class="sec-title">${esc(g.name)}</div><div class="card">${li(g.files)}</div>`;return}
+    if(!g.subs&&!/candida/i.test(g.name)){
+      const notice=/regulamente/i.test(g.name)?`<div class="small muted" style="margin:0 0 14px;line-height:1.55"><strong>Notă privind Regulamentul Intern:</strong> Documentul se află în curs de revizuire. Unele articole sunt în modificare, iar altele sunt armonizate cu reglementările MLNR. Forma disponibilă în Bibliotecă poate suferi actualizări până la definitivarea și aprobarea noii versiuni.</div>`:"";
+      h+=`<div class="sec-title">${esc(g.name)}</div><div class="card">${notice}${li(g.files)}</div>`;return}
     h+=`<details class="card fold"><summary><span class="doci">${svg(g.subs?"audio":"doc",18)}</span><span><span class="t">${esc(g.name)}</span><span class="s">${g.subs?`${g.files.length} ${g.files.length===1?"piesă":"piese"}`:n(g.files.length)}</span></span><span class="chev">${svg("chev",16)}</span></summary>${body}</details>`;
   });
   v.innerHTML=h;
@@ -1747,7 +1749,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-14";
+const APP_VERSION="2026.10.20-15";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
