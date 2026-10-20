@@ -1228,6 +1228,44 @@ function vLib(v){
 }
 
 
+/* Centralizator administrativ: calculează totalurile din situațiile nominale,
+   fără să presupună un număr fix de membri sau o cotizație uniformă. */
+function adminFinanceOverview(financial,formatMoney){
+  const rows=financial||[];
+  const total=field=>rows.reduce((a,r)=>a+Number(r[field]||0),0);
+  const sum=(field,key)=>rows.reduce((a,r)=>a+Number(r[field]&&r[field][key]||0),0);
+  const snapshot=(label,field)=>{
+    const target=sum(field,"target"),paid=sum(field,"paid"),remaining=sum(field,"remaining");
+    const percentage=target>0?Math.max(0,Math.min(100,Math.round(paid/target*100))):0;
+    return `<div class="finance-item"><strong>${esc(label)}</strong>
+      <div class="frow"><span class="muted">Valoare totală de referință</span><strong>${formatMoney(target)}</strong></div>
+      <div class="frow"><span class="muted">Încasat</span><strong>${formatMoney(paid)}</strong></div>
+      <div class="frow"><span class="muted">Diferență rămasă</span><strong>${formatMoney(remaining)}</strong></div>
+      <div class="bar" aria-label="Procent încasat: ${percentage}%"><i style="width:${percentage}%"></i></div>
+      <div class="small muted">${percentage}% din valoarea de referință</div>
+    </div>`;
+  };
+  const donations=rows.flatMap(r=>(r.payments||[]).filter(p=>p.component==="Sponsorizare").map(p=>({
+    name:r.name,date:p.date,amount:Number(p.amount||0),reference:p.reference||""
+  }))).sort((a,b)=>String(a.name).localeCompare(String(b.name),"ro"));
+  const donationTotal=total("sponsorships");
+  const donationItems=donations.length?`<ul class="list">${donations.map(p=>`<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><div><div class="t">${esc(p.name)}</div><div class="small muted">${esc(p.date)}${p.reference?" · "+esc(p.reference):""}</div></div><strong class="num">${formatMoney(p.amount)}</strong></li>`).join("")}</ul>`:
+    '<p class="small muted">Nu există încă sponsorizări înregistrate.</p>';
+  const detailedTotal=donations.reduce((a,p)=>a+p.amount,0);
+  return `<section class="card" aria-label="Situație financiară generală">
+    <div class="label">Situația financiară generală · ${rows.length} frați</div>
+    <p class="small muted">Valori orientative până la adoptarea cotizațiilor prin votul Lojii. Totaluri calculate din registrul nominal actualizat.</p>
+    ${snapshot("Metalele Lojii", "dues")}
+    ${snapshot("Gala Elitelor", "gala")}
+    <div class="finance-item"><strong>Sponsorizări și donații</strong>
+      <div class="frow"><span class="muted">Total înregistrat</span><strong>${formatMoney(donationTotal)}</strong></div>
+      <div class="small muted" style="margin:9px 0 5px">Contribuții nominale, cu data fiecărei încasări</div>
+      ${donationItems}
+      ${Math.abs(detailedTotal-donationTotal)>0.005?'<p class="small muted">Există o diferență între suma contribuțiilor nominale și tranzacțiile detaliate. Verifică registrul.</p>':""}
+    </div>
+  </section>`;
+}
+
 /* ---------- Administrarea Lojii: operatii autorizate exclusiv in backend ---------- */
 function vAdmin(v){
   if(!S.me.adminRole){v.innerHTML='<div class="state err">Acces nepermis.</div>';return}
@@ -1313,7 +1351,7 @@ function vAdmin(v){
       <div class="frow"><span class="muted">Diferență</span><strong>${formatMoney(obj.remaining)}</strong></div>
       <div class="small muted">${esc(obj.status||"")}</div></div>`;
     const history=curr?.payments?.length?curr.payments.map(p=>`<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><div><div class="t">${esc(p.date)} · ${esc(p.component)}</div><div class="small muted">${esc(p.reference||"")}</div></div><strong>${formatMoney(p.amount)}</strong></li>`).join(""):'<li class="item">Nu există încă plăți înregistrate.</li>';
-    host.innerHTML=`<section class="card"><div class="label">Situație financiară nominală</div>
+    host.innerHTML=adminFinanceOverview(data.financial,formatMoney)+`<section class="card"><div class="label">Situație financiară nominală</div>
       <label class="small muted" for="admin-member">Frate</label><select id="admin-member">${opt}</select>
       ${curr?line("Metalele Lojii",curr.dues)+line("Gala Elitelor",curr.gala)+`<div class="frow"><span class="muted">Sponsorizări</span><strong>${formatMoney(curr.sponsorships)}</strong></div>`:""}
       <div class="finance-item"><strong>Istoricul tranșelor</strong><ul class="list">${history}</ul></div></section>
@@ -1709,7 +1747,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-12";
+const APP_VERSION="2026.10.20-13";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
