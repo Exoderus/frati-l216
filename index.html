@@ -929,9 +929,9 @@ function openLucrare(){
     ${platesList?`<div class="card"><ul class="list">${platesList}</ul></div>`:`<div class="state">Nu sunt încă planșe susținute înregistrate pentru acest an masonic.</div>`}
     ${S.data.widow?`<div class="sec-title">Trunchiul văduvei · situația Lojii</div>
       <section class="card">
-        <div class="frow"><span class="muted">Total calculat</span><span class="num">${esc(S.data.widow.general.calculated)} lei</span></div>
-        <div class="frow"><span class="muted">Contribuții încasate</span><span class="num">${esc(S.data.widow.general.contributed)} lei</span></div>
-        <div class="frow"><span class="muted">Diferență informativă</span><span class="num">${esc(S.data.widow.general.difference)} lei</span></div>
+        <div class="frow"><span class="muted">Total calculat</span><span class="num">${widowLei(S.data.widow.general.calculated)}</span></div>
+        <div class="frow"><span class="muted">Contribuții încasate</span><span class="num">${widowLei(S.data.widow.general.contributed)}</span></div>
+        <div class="frow"><span class="muted">Diferență informativă</span><span class="num">${widowLei(S.data.widow.general.difference)}</span></div>
         <p class="small muted" style="margin:12px 0 0"><strong>*</strong> Sumele au caracter informativ și nu constituie obligații de plată până la adoptarea măsurii prin votul Lojii.</p>
       </section>`:""}
     <div class="sec-title">Ultimele lovituri</div>
@@ -1048,6 +1048,7 @@ function vRegistru(){
   <tfoot><tr><th scope="row">Prezenți</th>${tot.map(n=>`<td class="num">${n}</td>`).join("")}<td></td></tr></tfoot></table></div>`;
 }
 
+function widowLei(v){const x=String(v==null?"":v).trim();return esc(!x||x==="—"||x==="–"?"—":/lei\\b/i.test(x)?x:x+" lei")}
 function vMe(v){
   if(!M.me){v.innerHTML=`<div class="state">Nu am găsit contul ${esc(S.me.email||"")} în lista fraților activi. Situația personală apare după ce Secretarul îți asociază adresa de e-mail.</div>`;return}
   const me=M.me,p=M.pres.get(me.key)||[];let h=piatraMeaCard(me);
@@ -1063,9 +1064,9 @@ function vMe(v){
     const w=widow.mine;
     h+=`<section class="card" aria-label="Situația mea la Trunchiul văduvei">
       <div class="label">Trunchiul văduvei · ${esc(widow.year)}</div>
-      ${w?`<div class="frow"><span class="muted">Contribuții calculate</span><span class="num">${esc(w.calculated)} lei</span></div>
-        <div class="frow"><span class="muted">Contribuții efectuate</span><span class="num">${esc(w.contributed)} lei</span></div>
-        <div class="frow"><span class="muted">Diferență informativă</span><span class="num">${esc(w.difference)} lei</span></div>
+      ${w?`<div class="frow"><span class="muted">Contribuții calculate</span><span class="num">${widowLei(w.calculated)}</span></div>
+        <div class="frow"><span class="muted">Contribuții efectuate</span><span class="num">${widowLei(w.contributed)}</span></div>
+        <div class="frow"><span class="muted">Diferență informativă</span><span class="num">${widowLei(w.difference)}</span></div>
         <div class="small muted">${esc(w.taxedMeetings)} ținute luate în calcul</div>`:
         `<p class="small muted">Situația individuală nu este încă asociată în registru. Solicită verificarea la Secretariat.</p>`}
       <p class="small muted" style="margin-top:12px"><strong>*</strong> Sumele sunt calculate exclusiv cu titlu informativ. Ele nu constituie obligații de plată până la adoptarea măsurii prin votul Lojii.</p>
