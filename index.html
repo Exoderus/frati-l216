@@ -89,6 +89,12 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .lucr>.label{color:var(--gold)}
 .lucr-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
 .lucr-action{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:192px;max-width:220px}
+.finance-item{padding-top:12px;margin-top:10px;border-top:1px solid var(--line)}
+.finance-item-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px;margin-bottom:8px}
+.finance-badge{display:inline-block;padding:4px 9px;border-radius:999px;font-size:11px;line-height:1.25;font-weight:600;background:var(--line);color:var(--fg)}
+.finance-badge.ok{background:rgba(55,145,100,.17);color:#83d7a7}
+.finance-badge.partial{background:rgba(202,156,62,.16);color:var(--gold-ink)}
+.finance-badge.pending{background:var(--line);color:var(--muted)}
 .lucr-action-btn{display:inline-flex;justify-content:center;align-items:center;gap:9px;min-height:42px;width:100%;border:1px solid var(--gold);border-radius:9px;background:var(--gold);color:#101827;font:600 14px var(--f-body);padding:9px 13px;cursor:pointer;transition:filter .18s,transform .18s}
 .lucr-action-btn:hover{filter:brightness(1.08)}
 .lucr-action-btn:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
@@ -558,6 +564,8 @@ async function loadAll(){
       S.data.plans=d.plans||[];S.data.plansOn=Array.isArray(d.plans);
       S.data.excursions=d.excursions||[];
       S.data.widow=d.widow||null;
+      S.data.finance=d.finance||null;
+      if(d.errors&&d.errors.finance)S.err.finance={status:500};
       if(d.errors&&d.errors.widow)S.err.widow={status:500};
       if(d.errors&&d.errors.events)S.err.events={status:500};
       if(!CONFIG.SHOW_NEWS)S.data.news=[];
@@ -569,7 +577,7 @@ async function loadAll(){
     // 2) date proaspete în fundal
     try{
       const d=await A.bootstrap();
-      apply(d);try{const cachedData={...d};delete cachedData.widow;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
+      apply(d);try{const cachedData={...d};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
     }catch(e){
       if(e.status===401){store.del(AUTH_KEY);startLogin(true);return}
       if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
@@ -1059,6 +1067,48 @@ function vRegistru(){
 }
 
 function widowLei(v){const x=String(v==null?"":v).trim();return esc(!x||x==="—"||x==="–"?"—":/lei\b/i.test(x)?x:x+" lei")}
+function financeStatusClass(status){
+  if(status==="Achitat integral")return "ok";
+  if(status==="Achitat parțial")return "partial";
+  return "pending";
+}
+function financeBadge(status){
+  const label=status||"Neconfirmat";
+  return `<span class="finance-badge ${financeStatusClass(label)}">${esc(label)}</span>`;
+}
+function financeMe(){
+  const finance=S.data.finance;if(!finance)return "";
+  const own=finance.mine;
+  const item=(title,item,adopted)=>`<div class="finance-item">
+    <div class="finance-item-top"><strong>${esc(title)}</strong>${financeBadge(item.status)}</div>
+    <div class="frow"><span class="muted">${adopted?"Valoare aprobată":"Valoarea anului precedent (orientativă)"}</span><span class="num">${widowLei(item.target)}</span></div>
+    <div class="frow"><span class="muted">Achitat</span><span class="num">${widowLei(item.paid)}</span></div>
+    <div class="frow"><span class="muted">Diferență informativă</span><span class="num">${widowLei(item.difference)}</span></div>
+  </div>`;
+  return `<section class="card" aria-label="Situația mea financiară">
+    <div class="label">Cotizații și contribuții · ${esc(finance.year)}</div>
+    ${own?item("Metalele Lojii — cotizație",own.dues,finance.adoption.dues)+item("Gala Elitelor",own.gala,finance.adoption.gala)+`
+      <div class="frow" style="margin-top:10px"><span class="muted">Sponsorizările mele</span><span class="num">${widowLei(own.sponsorships)}</span></div>`:
+      '<p class="small muted">Situația ta financiară nu a putut fi asociată în mod unic. Solicită verificarea la Trezorerie.</p>'}
+    <p class="small muted" style="margin-top:12px"><strong>*</strong> Pentru componentele încă neaprobate, valorile sunt cele de anul trecut și au caracter orientativ. Valorile aprobate sunt preluate din registrul actualizat.</p>
+  </section>`;
+}
+function financePublic(){
+  const f=S.data.finance;
+  const bros=M.bros||[];
+  if(!f)return S.err.finance?'<div class="state">Situația cotizațiilor este temporar indisponibilă.</div>':'<div class="state">Situația cotizațiilor se va afișa după actualizarea datelor.</div>';
+  const rows=bros.slice().sort((a,b)=>(a.nume+" "+a.prenume).localeCompare(b.nume+" "+b.prenume,"ro")).map(b=>{
+    const status=f.publicStatuses&&f.publicStatuses[b.key]||{};
+    return `<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><div>
+      <div class="t">Fr∴ ${esc(b.prenume+" "+b.nume)}</div>
+      <div class="small muted">Cotizație: ${esc(status.dues||"Neconfirmat")}</div>
+      <div class="small muted">Gala Elitelor: ${esc(status.gala||"Neconfirmat")}</div>
+    </div>${financeBadge(status.dues)}</li>`;
+  }).join("");
+  return `<div class="card" style="margin-top:10px"><p class="small muted" style="margin:0 0 10px"><strong>*</strong> Cotizația și Gala Elitelor vor fi supuse votului Lojii. Valorile din anul precedent sunt doar orientative. Statusurile nominale nu includ sumele achitate sau sponsorizările.</p>
+     <ul class="list">${rows}</ul></div>`;
+}
+
 function vMe(v){
   if(!M.me){v.innerHTML=`<div class="state">Nu am găsit contul ${esc(S.me.email||"")} în lista fraților activi. Situația personală apare după ce Secretarul îți asociază adresa de e-mail.</div>`;return}
   const me=M.me,p=M.pres.get(me.key)||[];let h=piatraMeaCard(me);
@@ -1069,6 +1119,7 @@ function vMe(v){
     <div class="big" style="margin-top:6px">${pct===null?"–":pct+"%"}<small> · ${c.P} prezențe, ${c.M} motivate, ${c.N} nemotivate</small></div>
     <div class="dots">${M.dates.map((x,i)=>{const s=p[i]||"";const fut=x.d>today();return `<div class="dot ${s||(fut?"F":"F")}" title="${esc(fmtDM(x.d))}"><b>${s||(fut?"·":"–")}</b>${x.d.getDate()}.${String(x.d.getMonth()+1).padStart(2,"0")}</div>`}).join("")}</div>
     <div class="small muted" style="margin-top:8px">P prezent · M absent motivat · N absent nemotivat</div></section>`;
+  h+=financeMe();
   const widow=S.data.widow;
   if(widow){
     const w=widow.mine;
@@ -1120,9 +1171,10 @@ function vLib(v){
 
 function vBros(v){
   const cur=S.bview||"calatorii";
-  const seg=`<div class="seg" role="tablist" aria-label="Vedere">${[["calatorii","Călătoriile fraților"],["loji","Loji din Zona V"]].map(([k,l])=>`<button type="button" role="tab" aria-selected="${cur===k}" data-segb="${k}">${l}</button>`).join("")}</div>`;
+  const seg=`<div class="seg" role="tablist" aria-label="Vedere">${[["calatorii","Călătoriile fraților"],["loji","Loji din Zona V"],["cotizatii","Cotizațiile fraților"]].map(([k,l])=>`<button type="button" role="tab" aria-selected="${cur===k}" data-segb="${k}">${l}</button>`).join("")}</div>`;
   const bind=()=>v.querySelectorAll("[data-segb]").forEach(b=>b.onclick=()=>{S.bview=b.dataset.segb;vBros(v);window.scrollTo(0,0)});
   if(cur==="calatorii"){v.innerHTML=seg+vCalatorii();bind();bindPlans(v);return}
+  if(cur==="cotizatii"){v.innerHTML=seg+financePublic();bind();return}
   if(S.err.lodges||!M.lodges.length){v.innerHTML=seg+vLoji();bind();return}
   v.innerHTML=seg+`<div class="card" style="margin:10px 0"><p style="margin:0 0 6px">Aici găsiți lojile Zonei V, ca să vă puteți planifica vizitele. Când doriți să mergeți în vizită, apăsați „Anunță o vizită” la loja respectivă. Frații văd cine mai merge, iar Secretarul nostru ia legătura cu loja gazdă.</p><p style="margin:0"><strong>Ucenicii și Calfele</strong> merg în vizită doar însoțiți de un Maestru.</p><p class="small muted" style="margin:8px 0 0;font-style:italic">Lista este în curs de actualizare.</p></div><input class="search" type="search" id="lojiQ" placeholder="Caută lojă, număr, oraș sau secretar" autocomplete="off" aria-label="Caută o lojă" style="margin-bottom:6px"><div id="lojiList">${vLoji("")}</div>`;
   bind();
@@ -1462,7 +1514,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-07";
+const APP_VERSION="2026.10.20-08";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
