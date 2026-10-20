@@ -442,7 +442,7 @@ function folderAllowedNow_(folderId, level, name, mime) {
   }
   return false;
 }
-function fileAllowedNow_(f, level, cat) {
+function fileAllowedNow_(f, level) {
   const id = f.getId(), name = f.getName(), mime = f.getMimeType();
   if (HIDDEN_().indexOf(id) >= 0) return false;
   let direct = false, forbiddenPlacement = false;
@@ -468,6 +468,8 @@ function fileAllowedNow_(f, level, cat) {
   }
   if (forbiddenPlacement) return false;
   if (direct) return true;
+  // Shortcuturile sunt cazul exceptional ce necesita consultarea catalogului.
+  const cat = catalogCached_(level);
   // Pentru fisierele accesate prin shortcuts, verificam shortcutul LIVE.
   // O intrare ramasa doar in catalogul cache nu ofera acces.
   const entries = [].concat(cat.tinuteFiles || [], cat.minutul || [], cat.libTop || [], cat.libFiles || []);
@@ -488,7 +490,7 @@ function fileAllowedNow_(f, level, cat) {
 function file_(id, level) {
   if (!/^[\w-]{10,}$/.test(id)) return { error: "bad_request" };
   const f = DriveApp.getFileById(id);
-  if (!fileAllowedNow_(f, level || 1, catalogCached_(level))) return { error: "forbidden" };
+  if (!fileAllowedNow_(f, level || 1)) return { error: "forbidden" };
   const mime = f.getMimeType();
   const blob = /^application\/vnd\.google-apps\./.test(mime) ? f.getAs("application/pdf") : f.getBlob();
   return { name: f.getName(), mime: blob.getContentType(), b64: Utilities.base64Encode(blob.getBytes()) };
