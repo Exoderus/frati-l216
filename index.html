@@ -87,6 +87,14 @@ main{padding-block:16px calc(var(--tabbar) + 28px + env(safe-area-inset-bottom,0
 .lucr{cursor:pointer}
 .lucr:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .lucr>.label{color:var(--gold)}
+.lucr-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.lucr-action{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:192px;max-width:220px}
+.lucr-action-btn{display:inline-flex;justify-content:center;align-items:center;gap:9px;min-height:42px;width:100%;border:1px solid var(--gold);border-radius:9px;background:var(--gold);color:#101827;font:600 14px var(--f-body);padding:9px 13px;cursor:pointer;transition:filter .18s,transform .18s}
+.lucr-action-btn:hover{filter:brightness(1.08)}
+.lucr-action-btn:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+.lucr-action-btn:active{transform:translateY(1px)}
+.lucr-action-desc{font-size:12px;line-height:1.35;color:var(--muted);text-align:center}
+@media(max-width:520px){.lucr-head{display:block}.lucr-action{margin:12px 0 4px;max-width:none;min-width:0}.lucr-action-btn{min-height:44px}.lucr-action-desc{font-size:12px}}
 .loading{text-align:center;padding:28px 12px 18px}
 .loading .seal{position:relative;width:96px;height:112px;margin:0 auto 14px;perspective:600px}
 .loading .coin{position:relative;width:96px;height:96px;transform-style:preserve-3d;animation:coin 3.2s cubic-bezier(.45,0,.55,1) infinite}
@@ -841,7 +849,8 @@ function lucrareCard(){
   const n=M.bros.length||1;
   const lastPct=M.last?Math.round(M.last.c.P/Math.max(1,M.pres.size)*100):null;
   const ult=P.groups[0];
-  return `<section class="card lucr" id="lucrcard" role="button" tabindex="0" aria-label="Lucrarea Lojii – deschide pagina"><div class="label">Lucrarea Lojii · ${PIATRA.AN}</div>
+  return `<section class="card lucr" id="lucrcard" role="button" tabindex="0" aria-label="Lucrarea Lojii – deschide pagina"><div class="lucr-head"><div class="label" style="color:var(--gold)">Lucrarea Lojii · ${PIATRA.AN}</div>
+    <div class="lucr-action"><button class="lucr-action-btn" type="button" id="lucrdetails">Vezi detalii lojă <span aria-hidden="true">›</span></button><span class="lucr-action-desc">Planșe · Trunchiul văduvei · Statistici</span></div></div>
     <div class="lucr-top">${stoneHTML("stone-loja",P.frame,"Piatra Lojii: "+P.treapta)}
       <div><div class="tr">${esc(P.treapta)}</div><div class="n"><b>${P.lov}</b> / ${PIATRA.LOJA} lovituri</div><div class="bar"><i style="width:${Math.min(100,Math.round(P.lov/PIATRA.LOJA*100))}%"></i></div>
       <div class="ult">${ult?`Ultima șlefuire: ${esc(groupText(ult))}`:"Prima șlefuire vine odată cu prima ținută a anului."}</div></div></div>
@@ -985,7 +994,8 @@ function vHome(v){
   v.innerHTML=h;
   stoneMount(v.querySelector("#stone-loja"),"l216.piatra.loja",S.viewShown);
   const lc=v.querySelector("#lucrcard");
-  if(lc){lc.onclick=e=>{if(e.target.closest(".stone,[data-go]"))return;openLucrare()};lc.onkeydown=e=>{if(e.target!==lc)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();openLucrare()}}}
+  if(lc){lc.onclick=e=>{if(e.target.closest(".stone,[data-go],#lucrdetails"))return;openLucrare()};lc.onkeydown=e=>{if(e.target!==lc)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();openLucrare()}};
+    const details=lc.querySelector("#lucrdetails");if(details)details.onclick=e=>{e.stopPropagation();openLucrare()}}
   bindPlans(v);
   v.querySelectorAll("[data-exopen]").forEach(c=>{const go=()=>{const x=M.excursions.find(y=>y.id===c.dataset.exopen);if(x)openExcursion(x)};c.onclick=go;c.onkeydown=k=>{if(k.key==="Enter"||k.key===" "){k.preventDefault();go()}}});
   v.querySelectorAll("[data-go]").forEach(c=>{const go=()=>{S.tab="bros";S.bview=c.dataset.go;render();window.scrollTo(0,0)};c.onclick=go;c.onkeydown=e=>{if(e.key==="Enter")go()}});
@@ -1452,7 +1462,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.20-06";
+const APP_VERSION="2026.10.20-07";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
