@@ -568,7 +568,7 @@ const CREST='<img class="crestimg" src="logo.png" width="52" height="52" alt="Si
 
 /* ============ STARE ============ */
 const S={api:null,me:null,tab:"home",data:{},err:{},loading:true};
-const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situația mea","me"],["lib","Bibliotecă","lib"],["bros","Loji","temple"],["admin","Administrare","clipboard"]];
+const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situația mea","me"],["lib","Bibliotecă","lib"],["bros","Loji","temple"]];
 
 /* ============ ÎNCĂRCARE ============ */
 async function loadAll(){
@@ -735,7 +735,7 @@ function render(){
   </div>${S.api.mode==="google"?`<button class="outbtn" type="button" id="outbtn" aria-label="Ieși din cont" title="Ieși din cont">${svg("out",20)}</button>`:""}</div>${S.api.mode==="preview"?'<p>Previzualizare cu datele tale din Drive. Documentele se deschid în aplicația finală.</p>':""}</div></div>
   <main class="wrap"><div class="view" id="view"></div></main>
   <nav class="tabs" aria-label="Secțiuni"><div class="in" role="tablist">
-    ${TABS.filter(t=>t[0]!=="admin").map(([id,label,ic])=>`<button class="tab" role="tab" type="button" id="tab-${id}" aria-selected="${S.tab===id}" data-tab="${id}">${svg(ic)}<span>${label}</span></button>`).join("")}
+    ${TABS.map(([id,label,ic])=>`<button class="tab" role="tab" type="button" id="tab-${id}" aria-selected="${S.tab===id}" data-tab="${id}">${svg(ic)}<span>${label}</span></button>`).join("")}
   </div></nav>`;
   const ob=app.querySelector("#outbtn");if(ob)ob.onclick=logout;
   app.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;render();window.scrollTo(0,0)});
@@ -743,8 +743,7 @@ function render(){
   if(S.loading){v.innerHTML=`<div class="loading" role="status"><div class="seal" aria-hidden="true"><div class="coin"><img src="logo.png" alt=""><img class="back" src="logo.png" alt=""></div><i class="shadow"></i></div><p class="t">Se încarcă datele lojii…</p><p class="small muted">Prima deschidere după o actualizare a aplicației poate dura mai mult, până la 15 secunde. Vă rugăm nu reîncărcați pagina.</p></div><div class="card"><div class="skel w60"></div><div class="skel"></div><div class="skel w40"></div></div><div class="card"><div class="skel w40"></div><div class="skel"></div></div>`;return}
   if(S.err.roster&&!M.bros.length){v.innerHTML=accessDenied();return}
   S.viewShown=S.lastView!==S.tab;S.lastView=S.tab;
-  if(S.tab==="admin"&&!S.me.adminRole){S.tab="home";render();return}
-  ({home:vHome,tinute:vTinute,me:vMe,lib:vLib,bros:vBros,admin:vAdmin})[S.tab](v);
+  ({home:vHome,tinute:vTinute,me:vMe,lib:vLib,bros:vBros})[S.tab](v);
   v.querySelectorAll("[data-open]").forEach(b=>b.onclick=()=>openDoc(b.dataset.open,b.dataset.name,b.dataset.mime,b.dataset.link,b.dataset.dl));
 }
 
@@ -1141,9 +1140,25 @@ function financePublic(){
      <ul class="list">${rows}</ul></div>`;
 }
 
+function adminSwitchHTML(){
+  return '<div class="seg admin-view-switch" role="group" aria-label="Mod de vizualizare">'+
+    '<button type="button" data-profile-view="brother" aria-pressed="'+(S.meView!=="officer")+'">Ca frate</button>'+
+    '<button type="button" data-profile-view="officer" aria-pressed="'+(S.meView==="officer")+'">Ca demnitar</button></div>';
+}
+function bindAdminSwitch(v){
+  v.querySelectorAll("[data-profile-view]").forEach(btn=>btn.onclick=()=>{
+    S.meView=btn.dataset.profileView;
+    try{localStorage.setItem("l216.admin.view",S.meView)}catch(_){}
+    vMe(v);
+  });
+}
 function vMe(v){
   if(!M.me){v.innerHTML=`<div class="state">Nu am găsit contul ${esc(S.me.email||"")} în lista fraților activi. Situația personală apare după ce Secretarul îți asociază adresa de e-mail.</div>`;return}
-  const me=M.me,p=M.pres.get(me.key)||[];let h=(S.me.adminRole?`<button class="cta" id="open-admin" type="button">${svg("clipboard",18)} Administrarea Lojii</button>`:"")+piatraMeaCard(me);
+  if(S.me.adminRole && !S.meView){
+    try{S.meView=localStorage.getItem("l216.admin.view")==="officer"?"officer":"brother"}catch(_){S.meView="brother"}
+  }
+  if(S.me.adminRole && S.meView==="officer"){vAdmin(v);return}
+  const me=M.me,p=M.pres.get(me.key)||[];let h=(S.me.adminRole?adminSwitchHTML():"")+piatraMeaCard(me);
   const held=M.dates.map((x,i)=>({...x,v:p[i]||""})).filter(x=>x.d<=today()||x.v);
   const c={P:0,M:0,N:0};held.forEach(x=>{if(c[x.v]!==undefined)c[x.v]++});
   const tot=c.P+c.M+c.N,pct=tot?Math.round(c.P/tot*100):null;
@@ -1183,7 +1198,7 @@ function vMe(v){
   if(S.api.mode==="google")h+=`<button class="gbtn" type="button" style="align-self:center" onclick="logout()">Ieși din cont</button>`;
   v.innerHTML=h;
   stoneMount(v.querySelector("#stone-me"),"l216.piatra.me."+me.key,S.viewShown);
-  const adminEntry=v.querySelector("#open-admin");if(adminEntry)adminEntry.onclick=()=>{S.tab="admin";render();window.scrollTo(0,0)};
+  if(S.me.adminRole)bindAdminSwitch(v);
 }
 
 function vLib(v){
@@ -1208,15 +1223,15 @@ function vAdmin(v){
   if(!S.me.adminRole){v.innerHTML='<div class="state err">Acces nepermis.</div>';return}
   if(!S.api.adminRead){v.innerHTML='<div class="state">Funcționalitatea este disponibilă doar în aplicația autentificată.</div>';return}
   if(!S.adminData){
-    v.innerHTML='<div class="state">Se încarcă tabloul administrativ…</div>';
+    v.innerHTML=adminSwitchHTML()+'<div class="state">Se încarcă tabloul administrativ…</div>';bindAdminSwitch(v);
     if(!S.adminBusy){
       S.adminBusy=true;
       S.api.adminRead().then(data=>{
         S.adminData=data;S.adminBusy=false;
-        if(S.tab==="admin")vAdmin($("#view"));
+        if(S.tab==="me"&&S.meView==="officer")vAdmin($("#view"));
       }).catch(e=>{
         S.adminBusy=false;
-        if(S.tab==="admin")$("#view").innerHTML='<div class="state err">Nu am putut încărca datele administrative. <button class="cta" id="admin-retry">Reîncearcă</button></div>';
+        if(S.tab==="me"&&S.meView==="officer")$("#view").innerHTML=adminSwitchHTML()+'<div class="state err">Nu am putut încărca datele administrative. <button class="cta" id="admin-retry">Reîncearcă</button></div>';bindAdminSwitch($("#view"));
         const retry=$("#admin-retry");if(retry)retry.onclick=()=>{S.adminData=null;vAdmin($("#view"))};
       });
     }
@@ -1226,14 +1241,15 @@ function vAdmin(v){
   const selected=S.adminMode||"attendance";
   const formatMoney=n=>Number(n||0).toLocaleString("ro-RO",{maximumFractionDigits:2})+" lei";
   const choices='<option value="">Selectează un frate</option>'+data.financial.map(x=>`<option value="${esc(x.key)}">${esc(x.name)}</option>`).join("");
-  const labels={secretar:"Secretariat",trezorier:"Trezorerie",mv:"Maestru Venerabil",secretar_zonal:"Secretariat Zonal"};
-  v.innerHTML=`<div class="card"><div class="label">Administrare · ${esc(labels[role]||"Consultare")}</div>
+  const labels={secretar:"Secretariat",trezorier:"Trezorerie",mv:"Maestru Venerabil",secretar_zonal:"Secretariat Zonal",demnitar_mlnr:"Demnitar MLNR"};
+  v.innerHTML=adminSwitchHTML()+`<div class="card"><div class="label">Administrare · ${esc(labels[role]||"Consultare")}</div>
       <p class="small muted" style="margin-bottom:0">Acces autorizat. Operațiunile sunt înscrise direct în registrele Google Sheets.</p></div>
     <div class="seg" role="tablist">
       <button role="tab" type="button" data-admin-mode="attendance" aria-selected="${selected==="attendance"}">Prezențe</button>
       <button role="tab" type="button" data-admin-mode="finance" aria-selected="${selected==="finance"}">Trezorerie</button>
     </div>
     <div id="admin-body"></div>`;
+  bindAdminSwitch(v);
   v.querySelectorAll("[data-admin-mode]").forEach(b=>b.onclick=()=>{S.adminMode=b.dataset.adminMode;vAdmin(v)});
   const host=v.querySelector("#admin-body");
   if(selected==="attendance"){
@@ -1321,7 +1337,7 @@ function vAdmin(v){
         msg.textContent="Plata a fost înregistrată. Se actualizează situația…";
         try{
           S.adminData=await S.api.adminRead();
-          if(S.tab==="admin")vAdmin(v);
+          if(S.tab==="me"&&S.meView==="officer")vAdmin(v);
         }catch(e){
           msg.textContent="Plata a fost înregistrată, dar lista nu s-a actualizat. Revino în Administrare pentru datele noi.";
           S.adminData=null;
