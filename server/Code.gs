@@ -82,7 +82,7 @@ function member_(email) {
   const r = rows.find(x => String(x[10]).trim().toLowerCase() === email) || rows.find(x => String(x[9]).trim().toLowerCase() === email);
   if (!r || norm_(r[12]) !== "activ") return null;
   const k=key_(r[1],r[2]);
-  return { key: k, row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4], functie: r[5], uniqueIdentity: rows.filter(x=>norm_(x[12])==="activ"&&key_(x[1],x[2])===k).length===1 };
+  return { key: k, row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4], functie: r[5], demnitar: r[6], uniqueIdentity: rows.filter(x=>norm_(x[12])==="activ"&&key_(x[1],x[2])===k).length===1 };
 }
 
 /* ---------- jurnal de acces ---------- */
@@ -342,14 +342,8 @@ function adminRole_(me) {
   if(role==="trezorier" && office!=="trezorier")return "";
   if(role==="mv" && office!=="maestru venerabil")return "";
   // Calitatea de demnitar trebuie să fie înregistrată și în coloana G.
-  if(role==="demnitar_mlnr"){
-    const r=rosterRows_().find(x=>x.row===me.row);
-    if(!r||!String(r[6]||"").trim())return "";
-  }
-  if(role==="secretar_zonal"){
-    const r=rosterRows_().find(x=>x.row===me.row);
-    if(!r||norm_(r[6])!=="secretar zonal")return "";
-  }
+  if(role==="demnitar_mlnr"&&!String(me.demnitar||"").trim())return "";
+  if(role==="secretar_zonal"&&norm_(me.demnitar)!=="secretar zonal")return "";
   return role;
 }
 function adminRequired_(me, role) {
