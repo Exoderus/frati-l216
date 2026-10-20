@@ -428,7 +428,7 @@ function paymentAdd_(me,email,req) {
   const key=String(req.memberKey||""),category=String(req.category||"");
   if(["Cotizație Lojă","Gala Elitelor","Sponsorizare"].indexOf(category)<0)return {error:"bad_request"};
   const amount=Number(req.amount);
-  if(!Number.isFinite(amount)||amount<=0||amount>1000000||Math.round(amount*100)!==amount*100)return {error:"bad_request"};
+  if(!Number.isFinite(amount)||amount<=0||amount>1000000||Math.abs(Math.round(amount*100)-amount*100)>1e-6)return {error:"bad_request"};
   const method=String(req.method||"Numerar");
   if(["Numerar","Transfer bancar"].indexOf(method)<0)return {error:"bad_request"};
   const roster=rosterRows_().filter(r=>norm_(r[12])==="activ"&&key_(r[1],r[2])===key);
