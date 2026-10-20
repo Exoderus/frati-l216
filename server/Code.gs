@@ -231,8 +231,14 @@ function widowFund_(me) {
   if (!sh) throw new Error("missing_widow_sheet");
   const rows = sh.getRange("A3:J200").getDisplayValues();
   const totals = rows[0] || [];
-  const normalized = [me.full, me.name].map(norm_);
-  const matches = rows.slice(2).filter(r => r[1] && normalized.indexOf(norm_(r[1])) >= 0);
+  // Registrul financiar foloseste "Nume Prenume"; cel al membrilor activi
+  // poate include prenume suplimentare. Asociem doar pe cheia deja folosita
+  // de aplicatie: nume + primul prenume, cu potrivire exacta si unica.
+  const matches = rows.slice(2).filter(r => {
+    if (!r[1]) return false;
+    const words = norm_(r[1]).split(/\s+/).filter(Boolean);
+    return words.length >= 2 && words[0] + "|" + words[1] === me.key;
+  });
   const own = matches.length === 1 ? matches[0] : null;
   return {
     year: "6026–6027",
