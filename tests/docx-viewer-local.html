@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ro"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Test local DOCX — L216</title>
+<style>body{font:16px system-ui,sans-serif;max-width:850px;margin:35px auto;padding:0 18px;color:#1b2849}button,input{font:inherit;margin:10px 0}button{padding:10px 16px}#result{border:1px solid #bbb;border-radius:8px;padding:18px;min-height:90px;overflow-wrap:anywhere}.ok{color:#146b42}.bad{color:#b00020}.info{color:#555}table,td,th{border:1px solid #ccc;border-collapse:collapse;padding:5px}</style></head>
+<body><h1>Test local — vizualizare documente Word</h1>
+<p>Aceasta este o pagină de test separată. <strong>Nu se conectează la Google Drive, Google Sheets sau aplicația live.</strong> Fișierul DOCX selectat este procesat numai în browser.</p>
+<p><label>Document Word de test: <input id="file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label></p>
+<button id="selftest">Rulează testele de securitate</button>
+<p id="status" role="status" class="info">Aștept selecția unui document sau rularea testelor.</p>
+<div id="result" aria-label="Previzualizare Word"></div>
+<p class="info">Necesită internet numai pentru bibliotecile publice Mammoth 1.6.0 și DOMPurify 3.2.6, aceleași versiuni folosite de aplicație. Nu introduce documente sensibile într-un calculator pe care nu îl controlezi.</p>
+<script>
+const statusEl=document.getElementById("status"),out=document.getElementById("result");
+const scripts={};
+function loadScript(src,global){
+ if(scripts[src])return scripts[src];
+ scripts[src]=new Promise((resolve,reject)=>{
+  const s=document.createElement("script");s.src=src;
+  s.onload=()=>resolve(window[global]);
+  s.onerror=()=>{delete scripts[src];reject(new Error("Nu s-a putut încărca "+global))};
+  document.head.append(s);
+ });return scripts[src];
+}
+async function libs(){
+ const [m,purify]=await Promise.all([
+  loadScript("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js","mammoth"),
+  loadScript("https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.6/purify.min.js","DOMPurify")
+ ]);
+ if(!m||!purify||typeof purify.sanitize!=="function")throw new Error("Bibliotecile nu sunt disponibile");
+ return {m,purify};
+}
+function sanitize(purify,html){return purify.sanitize(html,{USE_PROFILES:{html:true}})}
+document.getElementById("selftest").onclick=async()=>{
+ statusEl.textContent="Se execută testele...";
+ try{
+  const {purify}=await libs();
+  const unsafe='<h2>Titlu valid</h2><p><strong>Text formatat</strong></p><img src="x" onerror="alert(1)"><a href="javascript:alert(1)">Link</a><script>alert(1)<\/script>';
+  const safe=sanitize(purify,unsafe);
+  const tmp=document.createElement("template");tmp.innerHTML=safe;
+  const pass=!!tmp.content.querySelector("h2")&&!!tmp.content.querySelector("strong")&&!tmp.content.querySelector("script")&&!tmp.content.querySelector("[onerror]")&&!tmp.content.querySelector('[href^="javascript:"]');
+  out.textContent="";
+  const p=document.createElement("p");p.className=pass?"ok":"bad";p.textContent=pass?"PASS — formatarea uzuală este păstrată, elementele periculoase sunt eliminate.":"FAIL — sanitizarea nu a trecut verificarea.";
+  out.append(p);
+  statusEl.textContent=pass?"Testele de sanitizare au trecut.":"Testele au eșuat. Nu publica modificarea.";
+ }catch(e){statusEl.textContent="Eroare: "+e.message;out.textContent=""}
+};
+document.getElementById("file").onchange=async e=>{
+ const file=e.target.files&&e.target.files[0];if(!file)return;
+ statusEl.textContent="Se convertește documentul local...";out.textContent="";
+ try{
+  const {m,purify}=await libs();
+  const r=await m.convertToHtml({arrayBuffer:await file.arrayBuffer()});
+  out.innerHTML='<article class="vdoc">'+sanitize(purify,r.value)+'</article>';
+  statusEl.textContent="Document afișat. Verifică titlurile, paragrafele, listele și tabelele.";
+ }catch(err){statusEl.textContent="Nu s-a putut afișa DOCX: "+err.message;out.textContent=""}
+};
+</script></body></html>
