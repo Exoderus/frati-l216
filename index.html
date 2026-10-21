@@ -481,6 +481,8 @@ function serverAdapter(token){
     async me(){return {email:String(pl.email||"").toLowerCase(),name:pl.given_name||""}},
     bootstrap(){return retry(()=>call("bootstrap"))},
     photoSelf(){return retry(()=>call("photo_self"))},
+    cardProfileGet(){return retry(()=>call("card_profile_get"))},
+    cardProfileSet(profile){return call("card_profile_set",{profile})},
     adminRead(){return retry(()=>call("admin_read"))},
     attendanceSet(data){return call("attendance_set",data)},
     paymentAdd(data){return call("payment_add",data)},
@@ -1681,29 +1683,74 @@ async function openContactCard(){
   el.querySelector("#contactclose").onclick=close;
   el.addEventListener("keydown",e=>{if(e.key==="Escape")close()});
   el.querySelector("#contactclose").focus();
-  let mode="masonic",loading=true,failed=false;
+  let mode="masonic",loading=true,failed=false,editing=false,saving=false;
+  let profile={personalPhone:"",personalEmail:"",company:"",position:"",workPhone:"",workEmail:"",workWebsite:"",showMasonic:false,showProfane:false,shareMasonicPhoto:false,shareProfanePhoto:false};
+  const fields=[
+    ["personalPhone","Telefon personal"],["personalEmail","E-mail personal"],
+    ["company","Companie"],["position","Funcție"],["workPhone","Telefon profesional"],
+    ["workEmail","E-mail profesional"],["workWebsite","Website profesional"]
+  ];
+  const booleans=[
+    ["showMasonic","Acord pentru distribuirea profilului masonic"],
+    ["showProfane","Acord pentru distribuirea profilului profesional"],
+    ["shareMasonicPhoto","Include fotografia în contactul masonic"],
+    ["shareProfanePhoto","Include fotografia în contactul profesional"]
+  ];
   const paint=()=>{
     if(!active)return;
     const name=M.me?[M.me.prenume,M.me.nume].filter(Boolean).join(" "):(S.me?.name||"Frate");
     const img=photoUrl?'<img class="contact-photo" alt="Fotografia de profil" src="'+photoUrl+'">':'<div class="contact-avatar" aria-label="Fotografia indisponibilă">'+svg("me",56)+'</div>';
+    const details=mode==="masonic"?
+      '<p>R∴L∴ Transilvania nr. 216 · Or∴ Cluj</p><p>MLNR</p>'+
+      (profile.personalPhone?'<p>'+esc(profile.personalPhone)+'</p>':'')+
+      (profile.personalEmail?'<p>'+esc(profile.personalEmail)+'</p>':''):
+      (profile.company?'<p>'+esc(profile.company)+'</p>':'')+
+      (profile.position?'<p>'+esc(profile.position)+'</p>':'')+
+      (profile.workPhone?'<p>'+esc(profile.workPhone)+'</p>':'')+
+      (profile.workEmail?'<p>'+esc(profile.workEmail)+'</p>':'')+
+      (profile.workWebsite?'<p>'+esc(profile.workWebsite)+'</p>':'');
+    const form=editing?
+      '<form id="contactform" class="card" style="text-align:left">'+
+      fields.map(([key,label])=>'<label class="f" for="c_'+key+'">'+label+'</label><input id="c_'+key+'" name="'+key+'" value="'+esc(profile[key]||"")+'" maxlength="240" style="width:100%;min-height:44px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg)">').join("")+
+      booleans.map(([key,label])=>'<label class="check"><input type="checkbox" name="'+key+'" '+(profile[key]?'checked':'')+'><span>'+label+'</span></label>').join("")+
+      '<p class="small muted">Acordurile sunt memorate, dar niciun QR sau contact nu este încă publicat.</p>'+
+      '<button class="primary" type="submit" '+(saving?'disabled':'')+'>'+(saving?'Se salvează…':'Salvează datele')+'</button></form>':
+      '<button type="button" class="gbtn" id="contactedit">Editează datele de vizită</button>';
     el.querySelector("#contactbody").innerHTML=
       '<div class="seg" role="group" aria-label="Tip carte de vizită"><button type="button" data-contact-mode="masonic" aria-selected="'+(mode==="masonic")+'">Masonic</button><button type="button" data-contact-mode="profan" aria-selected="'+(mode==="profan")+'">Profan</button></div>'+
-      (loading?'<p class="muted small">Se încarcă fotografia…</p>':failed?'<p class="muted small">Fotografia nu este disponibilă momentan.</p>':'')+
-      img+'<h3>'+esc(name)+'</h3>'+
-      (mode==="masonic"?'<p>R∴L∴ Transilvania nr. 216 · Or∴ Cluj</p><p>MLNR</p>'+(M.me?.tel?'<p>'+esc(fmtTel(M.me.tel))+'</p>':'')+(M.me?.email?'<p>'+esc(M.me.email)+'</p>':''):'<p class="muted">'+(M.me?.profesie?esc(M.me.profesie):"Profilul profesional nu este completat.")+'</p>')+
-      '<div class="contact-pending">Codul QR și distribuirea contactului vor fi activate după configurarea datelor și a acordului de distribuire.</div>';
-    el.querySelectorAll("[data-contact-mode]").forEach(btn=>btn.onclick=()=>{mode=btn.dataset.contactMode;paint()});
+      (loading?'<p class="muted small">Se încarcă profilul…</p>':failed?'<p class="muted small">Fotografia sau profilul nu este disponibil momentan.</p>':'')+
+      img+'<h3>'+esc(name)+'</h3>'+details+
+      '<div class="contact-pending">Codul QR și distribuirea vor fi activate după validarea consimțământului și a publicării securizate.</div>'+form;
+    el.querySelectorAll("[data-contact-mode]").forEach(btn=>btn.onclick=()=>{if(editing)return;mode=btn.dataset.contactMode;paint()});
+    const eb=el.querySelector("#contactedit");if(eb)eb.onclick=()=>{editing=true;paint()};
+    const formEl=el.querySelector("#contactform");
+    if(formEl)formEl.onsubmit=async event=>{
+      event.preventDefault();if(saving||!S.api.cardProfileSet)return;
+      const next={};fields.forEach(([key])=>next[key]=formEl.elements.namedItem(key).value.trim());
+      booleans.forEach(([key])=>next[key]=formEl.elements.namedItem(key).checked);
+      saving=true;formEl.querySelector("button[type=submit]").disabled=true;
+      try{const updated=await S.api.cardProfileSet(next);if(!active)return;profile=updated.profile;editing=false;failed=false}
+      catch(e){if(!active)return;failed=true}
+      saving=false;paint();
+    };
   };
   paint();
-  if(!S.api.photoSelf){loading=false;failed=true;paint();return}
-  try{
-    const j=await S.api.photoSelf();
-    if(!active)return;
-    if(j.mimeType!=="image/png"||!j.base64)throw Error("invalid_photo");
-    const bin=atob(j.base64),bytes=new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
-    photoUrl=URL.createObjectURL(new Blob([bytes],{type:"image/png"}));
-  }catch(e){failed=true}
+  const results=await Promise.allSettled([
+    S.api.photoSelf?S.api.photoSelf():Promise.reject(Error("photo_not_supported")),
+    S.api.cardProfileGet?S.api.cardProfileGet():Promise.reject(Error("profile_not_supported"))
+  ]);
+  if(!active)return;
+  if(results[0].status==="fulfilled"){
+    try{
+      const j=results[0].value;
+      if(j.mimeType!=="image/png"||!j.base64)throw Error("invalid_photo");
+      const bin=atob(j.base64),bytes=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+      photoUrl=URL.createObjectURL(new Blob([bytes],{type:"image/png"}));
+    }catch(e){failed=true}
+  }else failed=true;
+  if(results[1].status==="fulfilled"&&results[1].value.profile)profile=results[1].value.profile;
+  else failed=true;
   loading=false;paint();
 }
 
