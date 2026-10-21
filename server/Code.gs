@@ -467,8 +467,14 @@ function adminRole_(me) {
     "savus|cristian": "demnitar_mlnr"
   };
   if(!me || !me.uniqueIdentity) return "";
-  const role=roles[me.key]||"";
   const office=norm_(me.functie);
+  // Supraveghetorii sunt demnitari prin functie: rolul urmeaza registrul
+  // (coloana „Funcție în lojă”), nu numele, ca sa se schimbe singur la noul mandat.
+  if(!roles[me.key]){
+    if(office==="s1")return "s1";
+    if(office==="s2")return "s2";
+  }
+  const role=roles[me.key]||"";
   if(role==="secretar" && office!=="secretar")return "";
   if(role==="trezorier" && office!=="trezorier")return "";
   if(role==="mv" && office!=="maestru venerabil")return "";
