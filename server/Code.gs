@@ -39,6 +39,9 @@ function doPost(e) {
     if (req.action === "bootstrap") logAccess_(who.email, me);
     if (!me) return json_({ error: "not_member", email: who.email });
     if (req.action === "bootstrap") return json_(bootstrap_(me, who.email));
+    if (req.action === "photo_self") return json_(photoSelf_(me));
+    if (req.action === "card_profile_get") return json_(cardProfileGet_(who.email));
+    if (req.action === "card_profile_set") return json_(cardProfileSet_(who.email, req.profile));
     if (req.action === "file") return json_(file_(String(req.id || ""), level_(me.grad)));
     if (req.action === "plan_add") return json_(planAdd_(me, who.email, req));
     if (req.action === "plan_cancel") return json_(planCancel_(who.email, String(req.id || "")));
@@ -83,6 +86,55 @@ function member_(email) {
   if (!r || norm_(r[12]) !== "activ") return null;
   const k=key_(r[1],r[2]);
   return { key: k, row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4], functie: r[5], demnitar: r[6], uniqueIdentity: rows.filter(x=>norm_(x[12])==="activ"&&key_(x[1],x[2])===k).length===1 };
+}
+
+/* Date de vizita private, controlate de titular. Nu contin poza si nu sunt publicate. */
+function cardProfileKey_(email) {
+  const hash=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(email).toLowerCase());
+  return "card_v1_" + Utilities.base64EncodeWebSafe(hash).replace(/=+$/, "");
+}
+function cardProfileGet_(email) {
+  const raw=PropertiesService.getScriptProperties().getProperty(cardProfileKey_(email));
+  const saved=raw?JSON.parse(raw):{};
+  return { profile: Object.assign({
+    personalPhone:"", personalEmail:"", company:"", position:"", workPhone:"",
+    workEmail:"", workWebsite:"", showMasonic:false, showProfane:false,
+    shareMasonicPhoto:false, shareProfanePhoto:false
+  }, saved) };
+}
+function cardProfileSet_(email, input) {
+  if (!input || typeof input!=="object" || Array.isArray(input)) return { error:"bad_request" };
+  const textFields=["personalPhone","personalEmail","company","position","workPhone","workEmail","workWebsite"];
+  const boolFields=["showMasonic","showProfane","shareMasonicPhoto","shareProfanePhoto"];
+  const existing=cardProfileGet_(email).profile, result={...existing};
+  for (const k of Object.keys(input)) {
+    if (textFields.includes(k)) {
+      if (typeof input[k]!=="string" || input[k].length>240) return {error:"bad_request"};
+      result[k]=input[k].trim();
+    } else if (boolFields.includes(k)) {
+      if (typeof input[k]!=="boolean") return {error:"bad_request"};
+      result[k]=input[k];
+    } else return {error:"bad_request"};
+  }
+  // Preferintele de partajare sunt salvate, dar nu activeaza singure un endpoint public.
+  const lock=LockService.getScriptLock();lock.waitLock(10000);
+  try {PropertiesService.getScriptProperties().setProperty(cardProfileKey_(email),JSON.stringify(result))}
+  finally {lock.releaseLock()}
+  return {profile:result};
+}
+
+/* Fotografie privata: numai pentru membrul autentificat. */
+function photoSelf_(me) {
+  if (!me.uniqueIdentity) return { error: "photo_unavailable" };
+  const rows = SpreadsheetApp.openById(CFG.SHEETS.matricol).getSheetByName("Frați").getRange("A7:E100").getDisplayValues();
+  const found = rows.filter(r => norm_(r[4]) === "activ" && key_(r[1], r[2]) === me.key);
+  if (found.length !== 1) return { error: "photo_unavailable" };
+  const manifest = JSON.parse(DriveApp.getFileById("1gZAi11x9BNJY9ME4uGI2BLqco8puDjan").getBlob().getDataAsString("UTF-8"));
+  const items = manifest.entries.filter(e => e.member_id === found[0][0] && e.status === "Activ");
+  if (items.length !== 1 || !/^[A-Za-z0-9_-]+$/.test(items[0].drive_file_id)) return { error: "photo_unavailable" };
+  const blob = DriveApp.getFileById(items[0].drive_file_id).getBlob();
+  if (blob.getContentType() !== "image/png" || blob.getBytes().length > 2097152) return { error: "photo_unavailable" };
+  return { mimeType: "image/png", base64: Utilities.base64Encode(blob.getBytes()) };
 }
 
 /* ---------- jurnal de acces ---------- */
