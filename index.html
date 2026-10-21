@@ -20,6 +20,10 @@
 .contact-panel p{line-height:1.5}
 .contact-panel .seg{margin:14px 0}
 .contact-pending{padding:16px;border:1px dashed var(--line);border-radius:12px;margin:18px 0;color:var(--muted);font-size:14px}
+
+.contact-qr{display:grid;place-items:center;gap:12px;margin:20px auto;padding:18px;border:1px solid var(--line);border-radius:14px;max-width:290px}
+#contactqrcode{padding:10px;background:#fff;border-radius:10px}
+#contactqrcode img,#contactqrcode canvas{display:block;width:184px;height:184px}
 </style>
 </head><body>
 <title>Transilvania 216 · Acces membri</title>
@@ -374,6 +378,7 @@ button.navbtn{cursor:pointer;font-family:inherit}
 
 <div id="app"></div>
 
+<script src="vendor/qrcode.min.js"></script>
 <script>
 /* ============ CONFIGURARE ============ */
 const CONFIG = {
@@ -483,6 +488,7 @@ function serverAdapter(token){
     photoSelf(){return retry(()=>call("photo_self"))},
     cardProfileGet(){return retry(()=>call("card_profile_get"))},
     cardProfileSet(profile){return call("card_profile_set",{profile})},
+    cardLinks(){return retry(()=>call("card_links"))},
     adminRead(){return retry(()=>call("admin_read"))},
     attendanceSet(data){return call("attendance_set",data)},
     paymentAdd(data){return call("payment_add",data)},
@@ -1684,6 +1690,7 @@ async function openContactCard(){
   el.addEventListener("keydown",e=>{if(e.key==="Escape")close()});
   el.querySelector("#contactclose").focus();
   let mode="masonic",loading=true,failed=false,editing=false,saving=false;
+  let cardLinks={masonic:"",profan:""};
   let profile={personalPhone:"",personalEmail:"",company:"",position:"",workPhone:"",workEmail:"",workWebsite:"",showMasonic:false,showProfane:false,shareMasonicPhoto:false,shareProfanePhoto:false};
   const fieldsMasonic=[["personalPhone","Telefon de contact"],["personalEmail","E-mail de contact"]];
   const fieldsProfan=[["company","Companie"],["position","Funcție profesională"],["workPhone","Telefon profesional"],["workEmail","E-mail profesional"],["workWebsite","Website profesional"]];
@@ -1722,16 +1729,28 @@ async function openContactCard(){
       '<div class="seg" role="group" aria-label="Tip carte de vizită"><button type="button" data-contact-mode="masonic" aria-selected="'+(mode==="masonic")+'">Masonic</button><button type="button" data-contact-mode="profan" aria-selected="'+(mode==="profan")+'">Profan</button></div>'+
       (loading?'<p class="muted small">Se încarcă profilul…</p>':failed?'<p class="muted small">Fotografia sau profilul nu este disponibil momentan.</p>':'')+
       img+'<h3>'+esc(name)+'</h3>'+details+
-      '<div class="contact-pending">Codul QR și distribuirea vor fi activate după validarea consimțământului și a publicării securizate.</div>'+form;
+      (cardLinks[mode]?
+        '<div class="contact-qr"><div id="contactqrcode" aria-label="Cod QR pentru cartea de vizită"></div><p class="small muted">Scanează pentru a salva contactul</p><button type="button" class="gbtn" id="contactshare">Distribuie</button></div>':
+        '<div class="contact-pending">Distribuirea acestui profil este dezactivată. O poți activa în formularul de editare.</div>')+form;
     el.querySelectorAll("[data-contact-mode]").forEach(btn=>btn.onclick=()=>{if(editing)return;mode=btn.dataset.contactMode;paint()});
     const eb=el.querySelector("#contactedit");if(eb)eb.onclick=()=>{editing=true;paint()};
+    if(cardLinks[mode]){
+      const target=el.querySelector("#contactqrcode");
+      if(target&&typeof QRCode==="function")new QRCode(target,{text:cardLinks[mode],width:184,height:184,colorDark:"#10172c",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
+      const share=el.querySelector("#contactshare");
+      if(share)share.onclick=async()=>{
+        const url=cardLinks[mode];
+        if(navigator.share){try{await navigator.share({title:"Carte de vizită",url});return}catch(e){if(e&&e.name==="AbortError")return}}
+        try{await navigator.clipboard.writeText(url);share.textContent="Link copiat"}catch(e){window.prompt("Copiază linkul",url)}
+      };
+    }
     const formEl=el.querySelector("#contactform");
     if(formEl)formEl.onsubmit=async event=>{
       event.preventDefault();if(saving||!S.api.cardProfileSet)return;
       const next={};(mode==="masonic"?fieldsMasonic:fieldsProfan).forEach(([key])=>next[key]=formEl.elements.namedItem(key).value.trim());
       booleans.filter(([key])=>mode==="masonic"?["showMasonic","shareMasonicPhoto"].includes(key):["showProfane","shareProfanePhoto"].includes(key)).forEach(([key])=>next[key]=formEl.elements.namedItem(key).checked);
       saving=true;formEl.querySelector("button[type=submit]").disabled=true;
-      try{const updated=await S.api.cardProfileSet(next);if(!active)return;profile=updated.profile;editing=false;failed=false}
+      try{const updated=await S.api.cardProfileSet(next);if(!active)return;profile=updated.profile;const links=await S.api.cardLinks();if(!active)return;cardLinks={masonic:links.masonic||"",profan:links.profan||""};editing=false;failed=false}
       catch(e){if(!active)return;failed=true}
       saving=false;paint();
     };
@@ -1739,7 +1758,8 @@ async function openContactCard(){
   paint();
   const results=await Promise.allSettled([
     S.api.photoSelf?S.api.photoSelf():Promise.reject(Error("photo_not_supported")),
-    S.api.cardProfileGet?S.api.cardProfileGet():Promise.reject(Error("profile_not_supported"))
+    S.api.cardProfileGet?S.api.cardProfileGet():Promise.reject(Error("profile_not_supported")),
+    S.api.cardLinks?S.api.cardLinks():Promise.reject(Error("links_not_supported"))
   ]);
   if(!active)return;
   if(results[0].status==="fulfilled"){
@@ -1753,6 +1773,7 @@ async function openContactCard(){
   }else failed=true;
   if(results[1].status==="fulfilled"&&results[1].value.profile)profile=results[1].value.profile;
   else failed=true;
+  if(results[2].status==="fulfilled")cardLinks={masonic:results[2].value.masonic||"",profan:results[2].value.profan||""};
   loading=false;paint();
 }
 
@@ -1867,7 +1888,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.21-21";
+const APP_VERSION="2026.10.21-22";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
