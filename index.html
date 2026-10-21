@@ -1928,7 +1928,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.21-25";
+const APP_VERSION="2026.10.21-26";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
@@ -1948,16 +1948,28 @@ async function checkVersion(){
 }
 /* Datele se actualizează fără delogare, fără reluarea fluxului OAuth.
    Cache-ul local rămâne doar pentru pornire; fiecare refresh solicită bootstrap nou. */
-async function refreshLiveData(){
+/* Refresh periodic + la revenire din fundal.
+   iOS poate suspenda temporizatoarele; visibilitychange/pageshow le completeaza.
+   Nu intrerupem niciodata modaluri sau operatiuni administrative. */
+let hiddenSince=0;
+async function refreshLiveData(forceOnResume=false){
   if(!S.api||S.api.mode!=="google"||S.loading||S.dataRefreshBusy||document.visibilityState!=="visible")return;
-  if(document.querySelector(".viewer")||S.adminBusy)return; // nu întrerupem un document/modal sau o operațiune admin
-  if(Date.now()-(S.lastDataRefresh||0)<5*60*1000)return;
+  if(document.querySelector(".viewer")||S.adminBusy)return;
+  const elapsed=Date.now()-(S.lastDataRefresh||0);
+  const minAge=forceOnResume?30*1000:3*60*1000;
+  if(elapsed<minAge)return;
   S.dataRefreshBusy=true;
   try{await loadAll(true)}catch(_){}
   finally{S.dataRefreshBusy=false}
 }
 document.addEventListener("visibilitychange",()=>{
-  if(document.visibilityState==="visible"){checkVersion();refreshLiveData()}
+  if(document.visibilityState==="hidden"){hiddenSince=Date.now();return}
+  checkVersion();
+  refreshLiveData(hiddenSince>0&&Date.now()-hiddenSince>=30*1000);
+  hiddenSince=0;
+});
+window.addEventListener("pageshow",e=>{
+  if(e.persisted){checkVersion();refreshLiveData(true)}
 });
 setInterval(checkVersion,15*60*1000);
 setInterval(refreshLiveData,60*1000);
