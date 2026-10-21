@@ -201,7 +201,7 @@ function publicCard_(token) {
       'for(var i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);'+
       'var u=URL.createObjectURL(new Blob([arr],{type:"text/vcard;charset=utf-8"}));'+
       'var a=document.createElement("a");a.href=u;a.download="contact.vcf";document.body.appendChild(a);a.click();'+
-      'a.remove();setTimeout(function(){URL.revokeObjectURL(u)},3000)}<\/script></body></html>';
+      'a.remove();setTimeout(function(){URL.revokeObjectURL(u)},3000)}</script></body></html>';
     return HtmlService.createHtmlOutput(html).setTitle(heading);
   }catch(e){return denied()}
 }
