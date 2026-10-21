@@ -195,20 +195,10 @@ function publicCard_(token) {
     }
     lines.push("END:VCARD");
     const vcf=lines.join("\r\n")+"\r\n";
-    const name=cardEsc_(me.name);
-    const heading=kind==="m"?"Contact masonic":"Contact profesional";
-    const b64=Utilities.base64Encode(Utilities.newBlob(vcf,"text/plain").getBytes());
-    const html='<!doctype html><html lang="ro"><head><meta name="viewport" content="width=device-width,initial-scale=1">'+
-      '<meta name="robots" content="noindex,nofollow,noarchive"><title>'+heading+'</title></head>'+
-      '<body style="max-width:440px;margin:40px auto;padding:24px;font-family:system-ui;background:#10172c;color:#eee7d6;text-align:center">'+
-      '<h1>'+name+'</h1><p>'+heading+'</p>'+
-      '<button id="save" style="padding:14px 22px;border:0;border-radius:9px;background:#d6b25e;font-size:16px">Salvează contactul</button>'+
-      '<script>document.getElementById("save").onclick=function(){var bin=atob("'+b64+'"),arr=new Uint8Array(bin.length);'+
-      'for(var i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);'+
-      'var u=URL.createObjectURL(new Blob([arr],{type:"text/vcard;charset=utf-8"}));'+
-      'var a=document.createElement("a");a.href=u;a.download="contact.vcf";document.body.appendChild(a);a.click();'+
-      'a.remove();setTimeout(function(){URL.revokeObjectURL(u)},3000)}</script></body></html>';
-    return HtmlService.createHtmlOutput(html).setTitle(heading);
+    // Servim direct vCard-ul in raspunsul GET: fara HTML si fara buton intermediar.
+    // iOS poate deschide previzualizarea contactului; unele browsere Android descarca .vcf.
+    return ContentService.createTextOutput(vcf)
+      .setMimeType(ContentService.MimeType.VCARD);
   }catch(e){return denied()}
 }
 
