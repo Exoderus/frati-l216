@@ -537,7 +537,7 @@ function bootstrap_(me, email) {
     const lodges = bootstrapTimed_("lodges", () => sharedCached_("lodges", 1800, () => values_(CFG.SHEETS.lodges, "A2:J100")), metrics);
     const news = bootstrapTimed_("news", () => sharedCached_("news", 300, () => values_(CFG.SHEETS.news, "A2:E300")), metrics);
     const out = {
-      me: { email: email, key: me.key, fisa: fisa, adminRole: adminRole_(me) },
+      me: { email: email, key: me.key, fisa: fisa, adminRole: adminRole_(me), functieLoja: me.functie || "", demnitateMLNR: me.demnitar || "" },
       roster: roster,
       presence: presence,
       visits: visits,
