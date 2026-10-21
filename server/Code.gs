@@ -26,7 +26,9 @@ const CFG = {
   }
 };
 
-function doGet() {
+function doGet(e) {
+  const token=String((e&&e.parameter&&e.parameter.card)||"");
+  if (token) return publicCard_(token);
   return json_({ ok: true, service: "Spațiul fraților" });
 }
 
@@ -42,6 +44,7 @@ function doPost(e) {
     if (req.action === "photo_self") return json_(photoSelf_(me));
     if (req.action === "card_profile_get") return json_(cardProfileGet_(who.email));
     if (req.action === "card_profile_set") return json_(cardProfileSet_(who.email, req.profile));
+    if (req.action === "card_links") return json_(cardLinks_(who.email));
     if (req.action === "file") return json_(file_(String(req.id || ""), level_(me.grad)));
     if (req.action === "plan_add") return json_(planAdd_(me, who.email, req));
     if (req.action === "plan_cancel") return json_(planCancel_(who.email, String(req.id || "")));
@@ -121,6 +124,92 @@ function cardProfileSet_(email, input) {
   try {PropertiesService.getScriptProperties().setProperty(cardProfileKey_(email),JSON.stringify(result))}
   finally {lock.releaseLock()}
   return {profile:result};
+}
+
+/* Legaturi permanente: identificatori aleatori, niciodata date din registrul matricol. */
+function cardLinks_(email) {
+  const props=PropertiesService.getScriptProperties();
+  const key=cardProfileKey_(email);
+  const lock=LockService.getScriptLock(); lock.waitLock(10000);
+  let pair;
+  try {
+    const saved=props.getProperty("card_links_"+key);
+    if(saved)pair=JSON.parse(saved);
+    else {
+      pair={m:Utilities.getUuid().replace(/-/g,"")+Utilities.getUuid().replace(/-/g,""),
+            p:Utilities.getUuid().replace(/-/g,"")+Utilities.getUuid().replace(/-/g,"")};
+      props.setProperties({["card_links_"+key]:JSON.stringify(pair),
+        ["card_public_"+pair.m]:email+"|m",["card_public_"+pair.p]:email+"|p"});
+    }
+  } finally {lock.releaseLock()}
+  const base=ScriptApp.getService().getUrl();
+  const p=cardProfileGet_(email).profile;
+  return {masonic:p.showMasonic?base+"?card="+pair.m:"",
+          profan:p.showProfane?base+"?card="+pair.p:""};
+}
+function cardEsc_(v) {
+  return String(v||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function cardVcf_(value) {
+  return String(value||"").replace(/[\r\n]+/g," ").replace(/\\/g,"\\\\")
+    .replace(/;/g,"\\;").replace(/,/g,"\\,").trim();
+}
+function publicCard_(token) {
+  const denied=()=>HtmlService.createHtmlOutput(
+    '<!doctype html><html><head><meta name="robots" content="noindex,nofollow"></head>'+
+    '<body style="font-family:sans-serif;padding:32px">Acest contact nu este disponibil.</body></html>')
+    .setTitle("Contact indisponibil");
+  if(!/^[a-f0-9]{64}$/.test(token))return denied();
+  try {
+    const props=PropertiesService.getScriptProperties();
+    const link=props.getProperty("card_public_"+token);
+    if(!link)return denied();
+    const ix=link.lastIndexOf("|"),email=link.slice(0,ix),kind=link.slice(ix+1);
+    if(!["m","p"].includes(kind))return denied();
+    const me=member_(email);
+    if(!me||!me.uniqueIdentity)return denied();
+    const p=cardProfileGet_(email).profile;
+    if(!(kind==="m"?p.showMasonic:p.showProfane))return denied();
+    const parts=String(me.name).trim().split(/\s+/);
+    const fn=cardVcf_(me.name);
+    const lines=["BEGIN:VCARD","VERSION:3.0","FN:"+fn,
+      "N:"+cardVcf_(parts[parts.length-1])+";"+cardVcf_(parts.slice(0,-1).join(" "))+";;;"];
+    let rows=[];
+    if(kind==="m"){
+      rows=[["ORG","R.L. Transilvania nr. 216 - MLNR"],
+        ["TITLE",me.functie||""],["TEL;TYPE=CELL",p.personalPhone],
+        ["EMAIL",p.personalEmail],["URL","https://transylvanialodge216.org/"],
+        ["NOTE","Or. Cluj"+(me.demnitar?"; Demnitate MLNR: "+me.demnitar:"")]];
+    }else{
+      rows=[["ORG",p.company],["TITLE",p.position],
+        ["TEL;TYPE=WORK",p.workPhone],["EMAIL;TYPE=WORK",p.workEmail],
+        ["URL",p.workWebsite]];
+    }
+    rows.forEach(r=>{if(r[1])lines.push(r[0]+":"+cardVcf_(r[1]))});
+    if(kind==="m"?p.shareMasonicPhoto:p.shareProfanePhoto){
+      const photo=photoSelf_(me);
+      if(photo.base64 && photo.mimeType==="image/png"){
+        const chunks=photo.base64.match(/.{1,72}/g)||[];
+        lines.push("PHOTO;ENCODING=b;TYPE=PNG:"+chunks.join("\r\n "));
+      }
+    }
+    lines.push("END:VCARD");
+    const vcf=lines.join("\r\n")+"\r\n";
+    const name=cardEsc_(me.name);
+    const heading=kind==="m"?"Contact masonic":"Contact profesional";
+    const b64=Utilities.base64Encode(Utilities.newBlob(vcf,"text/plain").getBytes());
+    const html='<!doctype html><html lang="ro"><head><meta name="viewport" content="width=device-width,initial-scale=1">'+
+      '<meta name="robots" content="noindex,nofollow,noarchive"><title>'+heading+'</title></head>'+
+      '<body style="max-width:440px;margin:40px auto;padding:24px;font-family:system-ui;background:#10172c;color:#eee7d6;text-align:center">'+
+      '<h1>'+name+'</h1><p>'+heading+'</p>'+
+      '<button id="save" style="padding:14px 22px;border:0;border-radius:9px;background:#d6b25e;font-size:16px">Salvează contactul</button>'+
+      '<script>document.getElementById("save").onclick=function(){var bin=atob("'+b64+'"),arr=new Uint8Array(bin.length);'+
+      'for(var i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);'+
+      'var u=URL.createObjectURL(new Blob([arr],{type:"text/vcard;charset=utf-8"}));'+
+      'var a=document.createElement("a");a.href=u;a.download="contact.vcf";document.body.appendChild(a);a.click();'+
+      'a.remove();setTimeout(function(){URL.revokeObjectURL(u)},3000)}</script></body></html>';
+    return HtmlService.createHtmlOutput(html).setTitle(heading);
+  }catch(e){return denied()}
 }
 
 /* Fotografie privata: numai pentru membrul autentificat. */
