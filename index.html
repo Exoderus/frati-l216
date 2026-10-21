@@ -1351,7 +1351,7 @@ function vAdmin(v){
   const selected=S.adminMode||"finance";
   const formatMoney=n=>Number(n||0).toLocaleString("ro-RO",{maximumFractionDigits:2})+" lei";
   const choices='<option value="">Selectează un frate</option>'+data.financial.map(x=>`<option value="${esc(x.key)}">${esc(x.name)}</option>`).join("");
-  const labels={secretar:"Secretariat",trezorier:"Trezorerie",mv:"Maestru Venerabil",secretar_zonal:"Secretariat Zonal",demnitar_mlnr:"Demnitar MLNR",s1:"Prim Supraveghetor",s2:"Secund Supraveghetor"};
+  const labels={secretar:"Secretariat",trezorier:"Trezorerie",mv:"Maestru Venerabil",secretar_zonal:"Secretariat Zonal",demnitar_mlnr:"Demnitar MLNR",s1:"Prim Supraveghetor",s2:"Secund Supraveghetor",orator:"Orator",expert:"Expert"};
   v.innerHTML=adminSwitchHTML()+`<div class="card"><div class="label">Administrare · ${esc(labels[role]||"Consultare")}</div>
       <p class="small muted" style="margin-bottom:0">Acces autorizat. Operațiunile sunt înscrise direct în registrele Google Sheets.</p></div>
     <div class="seg" role="tablist">

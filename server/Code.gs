@@ -454,34 +454,27 @@ function finance_(me) {
    Niciun rol nu este acceptat din request. Fiecare actiune verifica membrul
    activ si rolul in backend. Mircea Ursu are consultare, nu editare. */
 function adminRole_(me) {
-  const roles = {
-    "coca|mihai": "secretar",
-    "rosu|silviu": "mv",
-    "ursu|mircea": "secretar_zonal",
-    "beschiu|ovidiu": "trezorier",
-    "simu|horia": "demnitar_mlnr",
-    "mihalache|richard": "demnitar_mlnr",
-    "hossu|andrei": "demnitar_mlnr",
-    "bartos|adrian": "demnitar_mlnr",
-    "paun|ciprian": "demnitar_mlnr",
-    "savus|cristian": "demnitar_mlnr"
-  };
+  // Rolul urmeaza registrul „Frați activi”, nu o lista de nume:
+  // coloana „Funcție în lojă” (F) pentru cei 7 demnitari ai Lojii (RI art. 16)
+  // si coloana „Demnitar MLNR” (G) pentru demnitarii Marii Loji, care au acces implicit.
+  // La schimbarea mandatului, accesul trece singur la noii titulari.
+  // Scrierea ramane separata: prezente = Secretarul, incasari = Trezorierul.
   if(!me || !me.uniqueIdentity) return "";
   const office=norm_(me.functie);
-  // Supraveghetorii sunt demnitari prin functie: rolul urmeaza registrul
-  // (coloana „Funcție în lojă”), nu numele, ca sa se schimbe singur la noul mandat.
-  if(!roles[me.key]){
-    if(office==="s1")return "s1";
-    if(office==="s2")return "s2";
-  }
-  const role=roles[me.key]||"";
-  if(role==="secretar" && office!=="secretar")return "";
-  if(role==="trezorier" && office!=="trezorier")return "";
-  if(role==="mv" && office!=="maestru venerabil")return "";
-  // Calitatea de demnitar trebuie să fie înregistrată și în coloana G.
-  if(role==="demnitar_mlnr"&&!String(me.demnitar||"").trim())return "";
-  if(role==="secretar_zonal"&&norm_(me.demnitar)!=="secretar zonal")return "";
-  return role;
+  const lodge={
+    "secretar":"secretar",
+    "trezorier":"trezorier",
+    "maestru venerabil":"mv",
+    "s1":"s1","prim supraveghetor":"s1","primul supraveghetor":"s1",
+    "s2":"s2","secund supraveghetor":"s2","al doilea supraveghetor":"s2",
+    "orator":"orator",
+    "expert":"expert"
+  };
+  if(lodge[office])return lodge[office];
+  const mlnr=norm_(me.demnitar);
+  if(mlnr==="secretar zonal")return "secretar_zonal";
+  if(mlnr)return "demnitar_mlnr";
+  return "";
 }
 function adminRequired_(me, role) {
   const current = adminRole_(me);
