@@ -1684,13 +1684,13 @@ async function openContactCard(){
   let mode="masonic",loading=true,failed=false;
   const paint=()=>{
     if(!active)return;
-    const name=(S.me&&S.me.fisa&&S.me.fisa.nume)||M.me?.name||S.me?.name||"Frate";
+    const name=M.me?[M.me.prenume,M.me.nume].filter(Boolean).join(" "):(S.me?.name||"Frate");
     const img=photoUrl?'<img class="contact-photo" alt="Fotografia de profil" src="'+photoUrl+'">':'<div class="contact-avatar" aria-label="Fotografia indisponibilă">'+svg("me",56)+'</div>';
     el.querySelector("#contactbody").innerHTML=
       '<div class="seg" role="group" aria-label="Tip carte de vizită"><button type="button" data-contact-mode="masonic" aria-selected="'+(mode==="masonic")+'">Masonic</button><button type="button" data-contact-mode="profan" aria-selected="'+(mode==="profan")+'">Profan</button></div>'+
       (loading?'<p class="muted small">Se încarcă fotografia…</p>':failed?'<p class="muted small">Fotografia nu este disponibilă momentan.</p>':'')+
       img+'<h3>'+esc(name)+'</h3>'+
-      (mode==="masonic"?'<p>R∴L∴ Transilvania nr. 216 · Or∴ Cluj</p><p>MLNR</p>':'<p class="muted">Profil profesional — datele vor fi completate de titular.</p>')+
+      (mode==="masonic"?'<p>R∴L∴ Transilvania nr. 216 · Or∴ Cluj</p><p>MLNR</p>'+(M.me?.tel?'<p>'+esc(fmtTel(M.me.tel))+'</p>':'')+(M.me?.email?'<p>'+esc(M.me.email)+'</p>':''):'<p class="muted">'+(M.me?.profesie?esc(M.me.profesie):"Profilul profesional nu este completat.")+'</p>')+
       '<div class="contact-pending">Codul QR și distribuirea contactului vor fi activate după configurarea datelor și a acordului de distribuire.</div>';
     el.querySelectorAll("[data-contact-mode]").forEach(btn=>btn.onclick=()=>{mode=btn.dataset.contactMode;paint()});
   };
