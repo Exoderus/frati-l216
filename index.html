@@ -10,7 +10,17 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}html,body{height:100%}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}html,body{height:100%}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}
+/* Carte de vizita — fotografii servite numai utilizatorului autentificat. */
+.crest .outbtn+ .outbtn{margin-left:6px}
+.contact-photo{display:block;width:118px;height:118px;border-radius:50%;object-fit:cover;margin:12px auto 16px;border:3px solid var(--gold);background:var(--line)}
+.contact-avatar{width:118px;height:118px;border-radius:50%;margin:12px auto 16px;border:3px solid var(--gold);display:grid;place-items:center;color:var(--gold);font-family:var(--f-display);font-size:44px}
+.contact-panel{text-align:center;max-width:450px;margin:0 auto}
+.contact-panel h3{font-family:var(--f-display);font-size:25px;margin:8px 0}
+.contact-panel p{line-height:1.5}
+.contact-panel .seg{margin:14px 0}
+.contact-pending{padding:16px;border:1px dashed var(--line);border-radius:12px;margin:18px 0;color:var(--muted);font-size:14px}
+</style>
 </head><body>
 <title>Transilvania 216 · Acces membri</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -470,6 +480,7 @@ function serverAdapter(token){
     mode:"google",
     async me(){return {email:String(pl.email||"").toLowerCase(),name:pl.given_name||""}},
     bootstrap(){return retry(()=>call("bootstrap"))},
+    photoSelf(){return retry(()=>call("photo_self"))},
     adminRead(){return retry(()=>call("admin_read"))},
     attendanceSet(data){return call("attendance_set",data)},
     paymentAdd(data){return call("payment_add",data)},
@@ -570,6 +581,7 @@ const IC={
   temple:'<path d="M3 9l9-5 9 5M5 9v9M9.5 9v9M14.5 9v9M19 9v9M3 20h18"/>',
   pin:'<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
   out:'<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
+  qr:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M6 6h1M17 6h1M6 17h1M14 14h3v3h-3M21 14v3M17 21h4M14 21v-2"/>',
   dl:'<path d="M12 4v11M7 10l5 5 5-5M5 19h14"/>',
   ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>'
 };
@@ -745,12 +757,13 @@ function render(){
   <div class="band"><div class="wrap"><div class="crest">${CREST}<div style="flex:1;min-width:0">
     <div class="eyebrow">R∴L∴ Transilvania nr. 216 · Or∴ Cluj</div>
     <h1>${S.tab==="home"?hello:esc(TABS.find(t=>t[0]===S.tab)[1])}</h1>
-  </div>${S.api.mode==="google"?`<button class="outbtn" type="button" id="outbtn" aria-label="Ieși din cont" title="Ieși din cont">${svg("out",20)}</button>`:""}</div>${S.api.mode==="preview"?'<p>Previzualizare cu datele tale din Drive. Documentele se deschid în aplicația finală.</p>':""}</div></div>
+  </div>${S.api.mode==="google"?`<button class="outbtn" type="button" id="contactbtn" aria-label="Cartea mea de vizită" title="Cartea mea de vizită">${svg("qr",20)}</button><button class="outbtn" type="button" id="outbtn" aria-label="Ieși din cont" title="Ieși din cont">${svg("out",20)}</button>`:""}</div>${S.api.mode==="preview"?'<p>Previzualizare cu datele tale din Drive. Documentele se deschid în aplicația finală.</p>':""}</div></div>
   <main class="wrap"><div class="view" id="view"></div></main>
   <nav class="tabs" aria-label="Secțiuni"><div class="in" role="tablist">
     ${TABS.map(([id,label,ic])=>`<button class="tab" role="tab" type="button" id="tab-${id}" aria-selected="${S.tab===id}" data-tab="${id}">${svg(ic)}<span>${label}</span></button>`).join("")}
   </div></nav>`;
   const ob=app.querySelector("#outbtn");if(ob)ob.onclick=logout;
+  const cb=app.querySelector("#contactbtn");if(cb)cb.onclick=openContactCard;
   app.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;render();window.scrollTo(0,0)});
   const v=$("#view");
   if(S.loading){v.innerHTML=`<div class="loading" role="status"><div class="seal" aria-hidden="true"><div class="coin"><img src="logo.png" alt=""><img class="back" src="logo.png" alt=""></div><i class="shadow"></i></div><p class="t">Se încarcă datele lojii…</p><p class="small muted">Prima deschidere după o actualizare a aplicației poate dura mai mult, până la 15 secunde. Vă rugăm nu reîncărcați pagina.</p></div><div class="card"><div class="skel w60"></div><div class="skel"></div><div class="skel w40"></div></div><div class="card"><div class="skel w40"></div><div class="skel"></div></div>`;return}
@@ -1654,6 +1667,45 @@ function vLoji(q){
   return `${old?`<div class="small muted">Datele marcate „de verificat” provin dintr-o listă mai veche; confirmați-le la Secretariat înainte de o vizită.</div>`:""}`+orients.map(o=>`<div class="sec-title">Orientul ${esc(o)}</div><div class="card" style="padding-block:6px">${L.filter(l=>(l.orient||"Cluj")===o).map(l=>`<div class="lodge"><div class="lh"><span class="t">R∴L∴ ${esc(l.nume)}${l.nr?` nr. ${esc(l.nr)}`:""}</span>${/verific/i.test(l.valid)?`<span class="tag">de verificat</span>`:""}</div>${l.tinute?`<div class="s">${esc(l.tinute)}</div>`:""}${l.contact?`<div class="s">${esc(l.contact)}${l.functie?` · ${esc(l.functie)}`:""}</div>`:""}${l.adresa?`<div class="s">${esc(l.adresa)}</div><div class="lnav"><a class="navbtn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.adresa)}" target="_blank" rel="noopener">${svg("pin",14)}Google Maps</a><a class="navbtn" href="https://waze.com/ul?q=${encodeURIComponent(l.adresa)}&navigate=yes" target="_blank" rel="noopener">${svg("pin",14)}Waze</a></div>`:""}${canPlan()?`<div class="lnav"><button class="navbtn" type="button" data-plan-new data-l="${M.lodges.indexOf(l)}">${svg("tinute",14)}Anunță o vizită</button></div>`:""}<div class="lc">${l.tel?`<a href="tel:${esc(String(l.tel).replace(/\s/g,""))}">${esc(l.tel)}</a>`:""}${l.email?`<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>`:""}</div></div>`).join("")}</div>`).join("");
 }
 function fmtTel(t){t=String(t).replace(/\D/g,"");if(t.length===9)t="0"+t;return t.replace(/^(\d{4})(\d{3})(\d{3})$/,"$1 $2 $3")}
+
+
+/* Carte de vizita: numai afisare privata pana la aprobarea distribuirii QR/vCard. */
+async function openContactCard(){
+  if(document.querySelector(".viewer"))return;
+  const el=document.createElement("div");
+  el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-modal","true");el.setAttribute("aria-label","Cartea mea de vizită");
+  el.innerHTML='<header><div class="wrap"><button class="vbtn" type="button" id="contactclose">Închide</button><h2>Cartea mea de vizită</h2></div></header><div class="fbody"><div class="wrap contact-panel" id="contactbody"></div></div>';
+  document.body.append(el);document.body.style.overflow="hidden";
+  let active=true,photoUrl="";
+  const close=()=>{active=false;if(photoUrl)URL.revokeObjectURL(photoUrl);el.remove();document.body.style.overflow=""};
+  el.querySelector("#contactclose").onclick=close;
+  el.addEventListener("keydown",e=>{if(e.key==="Escape")close()});
+  el.querySelector("#contactclose").focus();
+  let mode="masonic",loading=true,failed=false;
+  const paint=()=>{
+    if(!active)return;
+    const name=(S.me&&S.me.fisa&&S.me.fisa.nume)||M.me?.name||S.me?.name||"Frate";
+    const img=photoUrl?'<img class="contact-photo" alt="Fotografia de profil" src="'+photoUrl+'">':'<div class="contact-avatar" aria-label="Fotografia indisponibilă">'+svg("me",56)+'</div>';
+    el.querySelector("#contactbody").innerHTML=
+      '<div class="seg" role="group" aria-label="Tip carte de vizită"><button type="button" data-contact-mode="masonic" aria-selected="'+(mode==="masonic")+'">Masonic</button><button type="button" data-contact-mode="profan" aria-selected="'+(mode==="profan")+'">Profan</button></div>'+
+      (loading?'<p class="muted small">Se încarcă fotografia…</p>':failed?'<p class="muted small">Fotografia nu este disponibilă momentan.</p>':'')+
+      img+'<h3>'+esc(name)+'</h3>'+
+      (mode==="masonic"?'<p>R∴L∴ Transilvania nr. 216 · Or∴ Cluj</p><p>MLNR</p>':'<p class="muted">Profil profesional — datele vor fi completate de titular.</p>')+
+      '<div class="contact-pending">Codul QR și distribuirea contactului vor fi activate după configurarea datelor și a acordului de distribuire.</div>';
+    el.querySelectorAll("[data-contact-mode]").forEach(btn=>btn.onclick=()=>{mode=btn.dataset.contactMode;paint()});
+  };
+  paint();
+  if(!S.api.photoSelf){loading=false;failed=true;paint();return}
+  try{
+    const j=await S.api.photoSelf();
+    if(!active)return;
+    if(j.mimeType!=="image/png"||!j.base64)throw Error("invalid_photo");
+    const bin=atob(j.base64),bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    photoUrl=URL.createObjectURL(new Blob([bytes],{type:"image/png"}));
+  }catch(e){failed=true}
+  loading=false;paint();
+}
 
 /* ============ VIZUALIZARE DOCUMENTE ============ */
 function openDoc(id,name,mime,link,dlName){
