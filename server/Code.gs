@@ -208,7 +208,7 @@ function photoSelf_(me) {
   const rows = SpreadsheetApp.openById(CFG.SHEETS.matricol).getSheetByName("Frați").getRange("A7:E100").getDisplayValues();
   const found = rows.filter(r => norm_(r[4]) === "activ" && key_(r[1], r[2]) === me.key);
   if (found.length !== 1) return { error: "photo_unavailable" };
-  const manifest = JSON.parse(DriveApp.getFileById("1Hhi2f5w2mvELIH8XSVNe8ii4Hr4u0EIm").getBlob().getDataAsString("UTF-8"));
+  const manifest = JSON.parse(DriveApp.getFileById("1Hhi2f5w2mvELIH8XSVNe8ii4Hr4u0EIm").getBlob().getDataAsString("UTF-8").replace(/^\uFEFF/, ""));
   const items = manifest.entries.filter(e => e.member_id === found[0][0] && e.status === "Activ");
   if (items.length !== 1 || !/^[A-Za-z0-9_-]+$/.test(items[0].drive_file_id)) return { error: "photo_unavailable" };
   const blob = DriveApp.getFileById(items[0].drive_file_id).getBlob();
