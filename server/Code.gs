@@ -452,7 +452,7 @@ function finance_(me) {
 
 /* ---------- administrare: roluri explicite pe identitatea din registru ----------
    Niciun rol nu este acceptat din request. Fiecare actiune verifica membrul
-   activ si rolul in backend. Mircea Ursu are consultare, nu editare. */
+   activ si rolul in backend. Secretarul zonal are consultare, nu editare. */
 function adminRole_(me) {
   // Rolul urmeaza registrul „Frați activi”, nu o lista de nume:
   // coloana „Funcție în lojă” (F) pentru cei 7 demnitari ai Lojii (RI art. 16)
