@@ -611,7 +611,7 @@ async function loadAll(forceFresh=false){
       if(d.errors&&d.errors.widow)S.err.widow={status:500};
       if(d.errors&&d.errors.events)S.err.events={status:500};
       if(!CONFIG.SHOW_NEWS)S.data.news=[];
-      if(d.me){S.me.key=d.me.key;S.me.fisa=d.me.fisa||null;if(!fromCache)S.me.adminRole=d.me.adminRole||""}
+      if(d.me){S.me.key=d.me.key;S.me.fisa=d.me.fisa||null;S.me.functieLoja=d.me.functieLoja||"";S.me.demnitateMLNR=d.me.demnitateMLNR||"";if(!fromCache)S.me.adminRole=d.me.adminRole||""}
     };
     // 1) afișare imediată din ultima versiune salvată pe acest dispozitiv
     let cached=null;try{cached=JSON.parse(localStorage.getItem(CK)||"null")}catch(_){}
@@ -1685,11 +1685,8 @@ async function openContactCard(){
   el.querySelector("#contactclose").focus();
   let mode="masonic",loading=true,failed=false,editing=false,saving=false;
   let profile={personalPhone:"",personalEmail:"",company:"",position:"",workPhone:"",workEmail:"",workWebsite:"",showMasonic:false,showProfane:false,shareMasonicPhoto:false,shareProfanePhoto:false};
-  const fields=[
-    ["personalPhone","Telefon personal"],["personalEmail","E-mail personal"],
-    ["company","Companie"],["position","Funcție"],["workPhone","Telefon profesional"],
-    ["workEmail","E-mail profesional"],["workWebsite","Website profesional"]
-  ];
+  const fieldsMasonic=[["personalPhone","Telefon de contact"],["personalEmail","E-mail de contact"]];
+  const fieldsProfan=[["company","Companie"],["position","Funcție profesională"],["workPhone","Telefon profesional"],["workEmail","E-mail profesional"],["workWebsite","Website profesional"]];
   const booleans=[
     ["showMasonic","Acord pentru distribuirea profilului masonic"],
     ["showProfane","Acord pentru distribuirea profilului profesional"],
@@ -1702,6 +1699,9 @@ async function openContactCard(){
     const img=photoUrl?'<img class="contact-photo" alt="Fotografia de profil" src="'+photoUrl+'">':'<div class="contact-avatar" aria-label="Fotografia indisponibilă">'+svg("me",56)+'</div>';
     const details=mode==="masonic"?
       '<p>R∴L∴ Transilvania nr. 216 · Or∴ Cluj</p><p>MLNR</p>'+
+      (S.me?.functieLoja?'<p><strong>Funcție în Lojă:</strong> '+esc(S.me.functieLoja)+'</p>':'')+
+      (S.me?.demnitateMLNR?'<p><strong>Demnitate MLNR:</strong> '+esc(S.me.demnitateMLNR)+'</p>':'')+
+      '<p><a href="https://transylvanialodge216.org/" target="_blank" rel="noopener noreferrer">transylvanialodge216.org</a></p>'+
       (profile.personalPhone?'<p>'+esc(profile.personalPhone)+'</p>':'')+
       (profile.personalEmail?'<p>'+esc(profile.personalEmail)+'</p>':''):
       (profile.company?'<p>'+esc(profile.company)+'</p>':'')+
@@ -1711,8 +1711,10 @@ async function openContactCard(){
       (profile.workWebsite?'<p>'+esc(profile.workWebsite)+'</p>':'');
     const form=editing?
       '<form id="contactform" class="card" style="text-align:left">'+
-      fields.map(([key,label])=>'<label class="f" for="c_'+key+'">'+label+'</label><input id="c_'+key+'" name="'+key+'" value="'+esc(profile[key]||"")+'" maxlength="240" style="width:100%;min-height:44px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg)">').join("")+
-      booleans.map(([key,label])=>'<label class="check"><input type="checkbox" name="'+key+'" '+(profile[key]?'checked':'')+'><span>'+label+'</span></label>').join("")+
+      '<h3 style="margin-bottom:8px">'+(mode==="masonic"?"Datele cărții masonice":"Datele cărții profesionale")+"</h3>"+
+      (mode==="masonic"?'<p class="small muted">Loja, website-ul, funcția în Lojă și demnitatea MLNR provin din evidențele oficiale și nu se editează aici.</p>':'<p class="small muted">Aceste date apar exclusiv în cartea Profană.</p>')+
+      (mode==="masonic"?fieldsMasonic:fieldsProfan).map(([key,label])=>'<label class="f" for="c_'+key+'">'+label+'</label><input id="c_'+key+'" name="'+key+'" value="'+esc(profile[key]||"")+'" maxlength="240" style="width:100%;min-height:44px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg)">').join("")+
+      booleans.filter(([key])=>mode==="masonic"?["showMasonic","shareMasonicPhoto"].includes(key):["showProfane","shareProfanePhoto"].includes(key)).map(([key,label])=>'<label class="check"><input type="checkbox" name="'+key+'" '+(profile[key]?'checked':'')+'><span>'+label+'</span></label>').join("")+
       '<p class="small muted">Acordurile sunt memorate, dar niciun QR sau contact nu este încă publicat.</p>'+
       '<button class="primary" type="submit" '+(saving?'disabled':'')+'>'+(saving?'Se salvează…':'Salvează datele')+'</button></form>':
       '<button type="button" class="gbtn" id="contactedit">Editează datele de vizită</button>';
@@ -1726,8 +1728,8 @@ async function openContactCard(){
     const formEl=el.querySelector("#contactform");
     if(formEl)formEl.onsubmit=async event=>{
       event.preventDefault();if(saving||!S.api.cardProfileSet)return;
-      const next={};fields.forEach(([key])=>next[key]=formEl.elements.namedItem(key).value.trim());
-      booleans.forEach(([key])=>next[key]=formEl.elements.namedItem(key).checked);
+      const next={};(mode==="masonic"?fieldsMasonic:fieldsProfan).forEach(([key])=>next[key]=formEl.elements.namedItem(key).value.trim());
+      booleans.filter(([key])=>mode==="masonic"?["showMasonic","shareMasonicPhoto"].includes(key):["showProfane","shareProfanePhoto"].includes(key)).forEach(([key])=>next[key]=formEl.elements.namedItem(key).checked);
       saving=true;formEl.querySelector("button[type=submit]").disabled=true;
       try{const updated=await S.api.cardProfileSet(next);if(!active)return;profile=updated.profile;editing=false;failed=false}
       catch(e){if(!active)return;failed=true}
@@ -1865,7 +1867,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.21-20";
+const APP_VERSION="2026.10.21-21";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
