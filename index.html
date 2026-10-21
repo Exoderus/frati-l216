@@ -24,6 +24,34 @@
 .contact-qr{display:grid;place-items:center;gap:12px;margin:20px auto;padding:18px;border:1px solid var(--line);border-radius:14px;max-width:290px}
 #contactqrcode{padding:10px;background:#fff;border-radius:10px}
 #contactqrcode img,#contactqrcode canvas{display:block;width:184px;height:184px}
+
+.viewer:has(.cc-card){background:#f5f3ed;color:#14203b}
+.viewer:has(.cc-card) header{background:#1b2849}
+.viewer:has(.cc-card) .fbody{padding-top:8px}
+.contact-panel:has(.cc-card){max-width:470px}
+.cc-tabs{margin:0 0 9px!important}
+.cc-card{background:#fffefa;border:1px solid #e3dfd5;border-radius:19px;padding:12px 14px;box-shadow:0 5px 22px rgba(20,30,50,.06)}
+.cc-identity{display:flex;justify-content:center;align-items:center;gap:12px;text-align:left}
+.cc-identity .contact-photo,.cc-identity .contact-avatar{width:72px;height:72px;margin:0;flex:none;border-width:2px}
+.cc-identity h3{font-size:24px;line-height:1.08;margin:0 0 4px}
+.cc-role{font-weight:700;font-size:14px}
+.cc-subtitle{font-size:12px;line-height:1.3;color:#586278}
+.cc-mnlr{font-size:11px;color:#9a7b33;margin-top:3px}
+.cc-qr{display:grid;justify-items:center;gap:5px;margin:9px 0}
+.cc-qr #contactqrcode{padding:7px;background:#fff;border:1px solid #e8e4dc;border-radius:11px}
+.cc-qr #contactqrcode img,.cc-qr #contactqrcode canvas{width:178px;height:178px}
+.cc-qr p{font-size:12px;color:#6d7587;margin:0}
+.cc-actions{display:flex;gap:9px;margin-top:9px}
+.cc-btn{flex:1;min-height:42px;border:1px solid #d9d6ce;border-radius:10px;background:#fff;color:#17223d;font-weight:700;font-size:14px}
+.cc-gold{background:#b99547;color:white;border-color:#b99547}
+.cc-details{border-top:1px solid #e7e3db;margin-top:12px;text-align:left}
+.cc-row{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #edeae3;padding:7px 0;font-size:13px}
+.cc-row span{color:#778092}
+.cc-row a{color:#14203b;text-decoration:none;text-align:right;overflow-wrap:anywhere}
+.cc-extra{text-align:left;padding-top:9px;font-size:12px;color:#5d6679}
+.cc-extra summary{font-weight:600;cursor:pointer}
+.cc-extra p{margin:5px 0}
+@media(max-height:700px){.cc-identity .contact-photo,.cc-identity .contact-avatar{width:60px;height:60px}.cc-qr #contactqrcode img,.cc-qr #contactqrcode canvas{width:162px;height:162px}}
 </style>
 </head><body>
 <title>Transilvania 216 · Acces membri</title>
@@ -1704,18 +1732,22 @@ async function openContactCard(){
     if(!active)return;
     const name=M.me?[M.me.prenume,M.me.nume].filter(Boolean).join(" "):(S.me?.name||"Frate");
     const img=photoUrl?'<img class="contact-photo" alt="Fotografia de profil" src="'+photoUrl+'">':'<div class="contact-avatar" aria-label="Fotografia indisponibilă">'+svg("me",56)+'</div>';
-    const details=mode==="masonic"?
-      '<p>R∴L∴ Transilvania nr. 216 · Or∴ Cluj</p><p>MLNR</p>'+
-      (S.me?.functieLoja?'<p><strong>Funcție în Lojă:</strong> '+esc(S.me.functieLoja)+'</p>':'')+
-      (S.me?.demnitateMLNR?'<p><strong>Demnitate MLNR:</strong> '+esc(S.me.demnitateMLNR)+'</p>':'')+
-      '<p><a href="https://transylvanialodge216.org/" target="_blank" rel="noopener noreferrer">transylvanialodge216.org</a></p>'+
-      (profile.personalPhone?'<p>'+esc(profile.personalPhone)+'</p>':'')+
-      (profile.personalEmail?'<p>'+esc(profile.personalEmail)+'</p>':''):
-      (profile.company?'<p>'+esc(profile.company)+'</p>':'')+
-      (profile.position?'<p>'+esc(profile.position)+'</p>':'')+
-      (profile.workPhone?'<p>'+esc(profile.workPhone)+'</p>':'')+
-      (profile.workEmail?'<p>'+esc(profile.workEmail)+'</p>':'')+
-      (profile.workWebsite?'<p>'+esc(profile.workWebsite)+'</p>':'');
+    const isM=mode==="masonic";
+    const role=isM?(S.me?.functieLoja||""):(profile.position||"");
+    const subtitle=isM?"R∴L∴ Transilvania nr. 216 · Or∴ Cluj":(profile.company||"Profil profesional");
+    const data=isM?[
+      ["Telefon",profile.personalPhone,"tel:"+(profile.personalPhone||"").replace(/[^+0-9]/g,"")],
+      ["E-mail",profile.personalEmail,"mailto:"+profile.personalEmail],
+      ["Website","transylvanialodge216.org","https://transylvanialodge216.org/"]
+    ]:[
+      ["Telefon",profile.workPhone,"tel:"+(profile.workPhone||"").replace(/[^+0-9]/g,"")],
+      ["E-mail",profile.workEmail,"mailto:"+profile.workEmail],
+      ["Website",profile.workWebsite,profile.workWebsite?(profile.workWebsite.startsWith("http")?profile.workWebsite:"https://"+profile.workWebsite):""]
+    ];
+    const rows=data.filter(item=>item[1]).map(([label,value,url])=>'<div class="cc-row"><span>'+esc(label)+'</span><a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">'+esc(value)+'</a></div>').join("");
+    const extra=isM?'<details class="cc-extra"><summary>Informații masonice</summary><p>R∴L∴ Transilvania nr. 216 · Or∴ Cluj</p><p>Obediență: Marea Lojă Națională din România</p>'+
+      (S.me?.functieLoja?'<p>Funcție în Lojă: '+esc(S.me.functieLoja)+'</p>':'')+
+      (S.me?.demnitateMLNR?'<p>Demnitate MLNR: '+esc(S.me.demnitateMLNR)+'</p>':'')+'</details>':'';
     const form=editing?
       '<form id="contactform" class="card" style="text-align:left">'+
       '<h3 style="margin-bottom:8px">'+(mode==="masonic"?"Datele cărții masonice":"Datele cărții profesionale")+"</h3>"+
@@ -1726,12 +1758,12 @@ async function openContactCard(){
       '<button class="primary" type="submit" '+(saving?'disabled':'')+'>'+(saving?'Se salvează…':'Salvează datele')+'</button></form>':
       '<button type="button" class="gbtn" id="contactedit">Editează datele de vizită</button>';
     el.querySelector("#contactbody").innerHTML=
-      '<div class="seg" role="group" aria-label="Tip carte de vizită"><button type="button" data-contact-mode="masonic" aria-selected="'+(mode==="masonic")+'">Masonic</button><button type="button" data-contact-mode="profan" aria-selected="'+(mode==="profan")+'">Profan</button></div>'+
-      (loading?'<p class="muted small">Se încarcă profilul…</p>':failed?'<p class="muted small">Fotografia sau profilul nu este disponibil momentan.</p>':'')+
-      img+'<h3>'+esc(name)+'</h3>'+details+
-      (cardLinks[mode]?
-        '<div class="contact-qr"><div id="contactqrcode" aria-label="Cod QR pentru cartea de vizită"></div><p class="small muted">Scanează pentru a salva contactul</p><button type="button" class="gbtn" id="contactshare">Distribuie</button></div>':
-        '<div class="contact-pending">Distribuirea acestui profil este dezactivată. O poți activa în formularul de editare.</div>')+form;
+      '<div class="seg cc-tabs" role="group" aria-label="Tip carte de vizită"><button type="button" data-contact-mode="masonic" aria-selected="'+isM+'">Masonic</button><button type="button" data-contact-mode="profan" aria-selected="'+(!isM)+'">Profan</button></div>'+
+      (loading?'<p class="muted small">Se încarcă profilul…</p>':failed?'<p class="muted small">Unele informații nu sunt disponibile momentan.</p>':'')+
+      '<div class="cc-card"><div class="cc-identity">'+img+'<div><h3>'+esc(name)+'</h3>'+(role?'<div class="cc-role">'+esc(role)+'</div>':'')+'<div class="cc-subtitle">'+esc(subtitle)+'</div>'+(isM?'<div class="cc-mnlr">MLNR</div>':'')+'</div></div>'+
+      (cardLinks[mode]?'<div class="cc-qr"><div id="contactqrcode" aria-label="Cod QR pentru cartea de vizită"></div><p>Scanează pentru a salva contactul</p></div>':'<div class="contact-pending">Distribuirea este dezactivată. Activeaz-o din editare.</div>')+
+      '<div class="cc-actions">'+(cardLinks[mode]?'<button type="button" class="cc-btn cc-gold" id="contactshare">Distribuie</button>':'')+(!editing?'<button type="button" class="cc-btn" id="contactedit">Editează</button>':'')+'</div>'+
+      '<div class="cc-details">'+rows+'</div>'+extra+'</div>'+form;
     el.querySelectorAll("[data-contact-mode]").forEach(btn=>btn.onclick=()=>{if(editing)return;mode=btn.dataset.contactMode;paint()});
     const eb=el.querySelector("#contactedit");if(eb)eb.onclick=()=>{editing=true;paint()};
     if(cardLinks[mode]){
@@ -1888,7 +1920,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.21-22";
+const APP_VERSION="2026.10.21-23";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
