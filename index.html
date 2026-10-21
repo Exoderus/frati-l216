@@ -626,6 +626,14 @@ const CREST='<img class="crestimg" src="logo.png" width="52" height="52" alt="Si
 
 /* ============ STARE ============ */
 const S={api:null,me:null,tab:"home",data:{},err:{},loading:true};
+/* Card preload: one shared in-memory request per authenticated app instance.
+   No localStorage/sessionStorage persistence of portraits or consent data. */
+let cardWarmup=null;
+function prefetchCard(){
+  if(cardWarmup||!S.api?.cardProfileGet||!S.api?.photoSelf||!S.api?.cardLinks)return cardWarmup;
+  cardWarmup=Promise.allSettled([S.api.photoSelf(),S.api.cardProfileGet(),S.api.cardLinks()]);
+  return cardWarmup;
+}
 const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situația mea","me"],["lib","Bibliotecă","lib"],["bros","Loji","temple"]];
 
 /* ============ ÎNCĂRCARE ============ */
@@ -662,7 +670,7 @@ async function loadAll(forceFresh=false){
     }
     if(forceFresh)S.adminData=null; // tablourile administrative se citesc din nou din server
     S.lastDataRefresh=Date.now();
-    S.loading=false;build();refreshOpenFinanceDetails();return true;
+    S.loading=false;build();refreshOpenFinanceDetails();if(!forceFresh)prefetchCard();return true;
   }
   const jobs={
     roster:()=>A.sheet(CONFIG.SHEETS.roster,"'Frați activi'!A4:L200"),
@@ -1782,17 +1790,17 @@ async function openContactCard(){
       const next={};(mode==="masonic"?fieldsMasonic:fieldsProfan).forEach(([key])=>next[key]=formEl.elements.namedItem(key).value.trim());
       booleans.filter(([key])=>mode==="masonic"?["showMasonic","shareMasonicPhoto"].includes(key):["showProfane","shareProfanePhoto"].includes(key)).forEach(([key])=>next[key]=formEl.elements.namedItem(key).checked);
       saving=true;formEl.querySelector("button[type=submit]").disabled=true;
-      try{const updated=await S.api.cardProfileSet(next);if(!active)return;profile=updated.profile;const links=await S.api.cardLinks();if(!active)return;cardLinks={masonic:links.masonic||"",profan:links.profan||""};editing=false;failed=false}
+      try{const updated=await S.api.cardProfileSet(next);if(!active)return;profile=updated.profile;cardWarmup=null;const links=await S.api.cardLinks();if(!active)return;cardLinks={masonic:links.masonic||"",profan:links.profan||""};prefetchCard();editing=false;failed=false}
       catch(e){if(!active)return;failed=true}
       saving=false;paint();
     };
   };
   paint();
-  const results=await Promise.allSettled([
-    S.api.photoSelf?S.api.photoSelf():Promise.reject(Error("photo_not_supported")),
-    S.api.cardProfileGet?S.api.cardProfileGet():Promise.reject(Error("profile_not_supported")),
-    S.api.cardLinks?S.api.cardLinks():Promise.reject(Error("links_not_supported"))
-  ]);
+  const results=await (prefetchCard()||Promise.allSettled([
+    Promise.reject(Error("photo_not_supported")),
+    Promise.reject(Error("profile_not_supported")),
+    Promise.reject(Error("links_not_supported"))
+  ]));
   if(!active)return;
   if(results[0].status==="fulfilled"){
     try{
@@ -1920,7 +1928,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.21-24";
+const APP_VERSION="2026.10.21-25";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
