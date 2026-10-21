@@ -39,6 +39,7 @@ function doPost(e) {
     if (req.action === "bootstrap") logAccess_(who.email, me);
     if (!me) return json_({ error: "not_member", email: who.email });
     if (req.action === "bootstrap") return json_(bootstrap_(me, who.email));
+    if (req.action === "photo_self") return json_(photoSelf_(me));
     if (req.action === "file") return json_(file_(String(req.id || ""), level_(me.grad)));
     if (req.action === "plan_add") return json_(planAdd_(me, who.email, req));
     if (req.action === "plan_cancel") return json_(planCancel_(who.email, String(req.id || "")));
@@ -83,6 +84,20 @@ function member_(email) {
   if (!r || norm_(r[12]) !== "activ") return null;
   const k=key_(r[1],r[2]);
   return { key: k, row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4], functie: r[5], demnitar: r[6], uniqueIdentity: rows.filter(x=>norm_(x[12])==="activ"&&key_(x[1],x[2])===k).length===1 };
+}
+
+/* Fotografie privata: numai pentru membrul autentificat. */
+function photoSelf_(me) {
+  if (!me.uniqueIdentity) return { error: "photo_unavailable" };
+  const rows = SpreadsheetApp.openById(CFG.SHEETS.matricol).getSheetByName("Frați").getRange("A7:E100").getDisplayValues();
+  const found = rows.filter(r => norm_(r[4]) === "activ" && key_(r[1], r[2]) === me.key);
+  if (found.length !== 1) return { error: "photo_unavailable" };
+  const manifest = JSON.parse(DriveApp.getFileById("1gZAi11x9BNJY9ME4uGI2BLqco8puDjan").getBlob().getDataAsString("UTF-8"));
+  const items = manifest.entries.filter(e => e.member_id === found[0][0] && e.status === "Activ");
+  if (items.length !== 1 || !/^[A-Za-z0-9_-]+$/.test(items[0].drive_file_id)) return { error: "photo_unavailable" };
+  const blob = DriveApp.getFileById(items[0].drive_file_id).getBlob();
+  if (blob.getContentType() !== "image/png" || blob.getBytes().length > 2097152) return { error: "photo_unavailable" };
+  return { mimeType: "image/png", base64: Utilities.base64Encode(blob.getBytes()) };
 }
 
 /* ---------- jurnal de acces ---------- */
