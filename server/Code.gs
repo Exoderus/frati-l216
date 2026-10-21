@@ -179,7 +179,7 @@ function publicCard_(token) {
       rows=[["ORG","R.L. Transilvania nr. 216 - MLNR"],
         ["TITLE",me.functie||""],["TEL;TYPE=CELL",p.personalPhone],
         ["EMAIL",p.personalEmail],["URL","https://transylvanialodge216.org/"],
-        ["NOTE","Or. Cluj"+(me.demnitar?"; Demnitate MLNR: "+me.demnitar:"")]];
+        ["NOTE","R.L. Transilvania nr. 216 | Or. Cluj | Obedienta: Marea Loja Nationala din Romania"+(me.functie?" | Functie in Loja: "+me.functie:"")+(me.demnitar?" | Demnitate MLNR: "+me.demnitar:"")]];
     }else{
       rows=[["ORG",p.company],["TITLE",p.position],
         ["TEL;TYPE=WORK",p.workPhone],["EMAIL;TYPE=WORK",p.workEmail],
