@@ -1756,7 +1756,7 @@ async function openContactCard(){
       booleans.filter(([key])=>mode==="masonic"?["showMasonic","shareMasonicPhoto"].includes(key):["showProfane","shareProfanePhoto"].includes(key)).map(([key,label])=>'<label class="check"><input type="checkbox" name="'+key+'" '+(profile[key]?'checked':'')+'><span>'+label+'</span></label>').join("")+
       '<p class="small muted">Acordurile sunt memorate, dar niciun QR sau contact nu este încă publicat.</p>'+
       '<button class="primary" type="submit" '+(saving?'disabled':'')+'>'+(saving?'Se salvează…':'Salvează datele')+'</button></form>':
-      '<button type="button" class="gbtn" id="contactedit">Editează datele de vizită</button>';
+      "";
     el.querySelector("#contactbody").innerHTML=
       '<div class="seg cc-tabs" role="group" aria-label="Tip carte de vizită"><button type="button" data-contact-mode="masonic" aria-selected="'+isM+'">Masonic</button><button type="button" data-contact-mode="profan" aria-selected="'+(!isM)+'">Profan</button></div>'+
       (loading?'<p class="muted small">Se încarcă profilul…</p>':failed?'<p class="muted small">Unele informații nu sunt disponibile momentan.</p>':'')+
@@ -1920,7 +1920,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.21-23";
+const APP_VERSION="2026.10.21-24";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
