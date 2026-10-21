@@ -186,7 +186,13 @@ function publicCard_(token) {
         ["URL",p.workWebsite]];
     }
     rows.forEach(r=>{if(r[1])lines.push(r[0]+":"+cardVcf_(r[1]))});
-    // Fotografii private nu sunt trimise catre pagina publica in aceasta etapa.
+    if(kind==="m"?p.shareMasonicPhoto:p.shareProfanePhoto){
+      const photo=photoSelf_(me);
+      if(photo.base64 && photo.mimeType==="image/png"){
+        const chunks=photo.base64.match(/.{1,72}/g)||[];
+        lines.push("PHOTO;ENCODING=b;TYPE=PNG:"+chunks.join("\r\n "));
+      }
+    }
     lines.push("END:VCARD");
     const vcf=lines.join("\r\n")+"\r\n";
     const name=cardEsc_(me.name);
