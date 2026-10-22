@@ -278,7 +278,11 @@ function released_(name) {
   if (!m) return true;
   return Date.now() >= new Date(+m[3], +m[2] - 1, +m[1], 21, 0, 0).getTime();
 }
-const isTinutaDoc_ = f => /minuta|convocator/i.test(f.name) || /^image\//.test(f.mimeType);
+// Planșele de gradul II și III stau în același folder al ținutei, ca Secretarul să le aibă la un loc,
+// dar nu ajung niciodată în aplicație: orice fișier marcat cu gradul (gr.2, gr.3, gr. II, gr. III,
+// Calfă, Maestru, Camera de Mijloc) se ignoră, chiar dacă numele conține „minuta”.
+const isUpperGradeDoc_ = f => { const n = norm_(f.name); return /\bgr\.?\s*(2|3|ii|iii)\b|grad(ul)?\s*(2|3|ii|iii)\b|calf|maestr|camera de mijloc/.test(n); };
+const isTinutaDoc_ = f => !isUpperGradeDoc_(f) && (/minuta|convocator/i.test(f.name) || /^image\//.test(f.mimeType));
 const HIDDEN_ = () => [CFG.SHEETS.news, CFG.SHEETS.lodges];
 
 /* Acces pe grade: un folder din Bibliotecă al cărui nume conține „Calfă” se vede doar de la gradul de Calfă în sus,
