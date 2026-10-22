@@ -639,13 +639,15 @@ const CREST='<img class="crestimg" src="logo.png" width="52" height="52" alt="Si
 const S={api:null,me:null,tab:"home",data:{},err:{},loading:true};
 /* Card preload: one shared in-memory request per authenticated app instance.
    No localStorage/sessionStorage persistence of portraits or consent data. */
-let cardWarmup=null,cardWarmupAt=0;
+let cardWarmup=null,cardWarmupAt=0,cardPhoto=null;
 function prefetchCard(fresh){
   if(!S.api?.cardProfileGet||!S.api?.photoSelf||!S.api?.cardLinks)return cardWarmup;
   // o preîncărcare veche (peste 5 minute) sau eșuată nu se refolosește: se cere din nou
   if(cardWarmup&&!fresh&&Date.now()-cardWarmupAt<5*60*1000)return cardWarmup;
   cardWarmupAt=Date.now();
-  cardWarmup=Promise.allSettled([S.api.photoSelf(),S.api.cardProfileGet(),S.api.cardLinks()]);
+  // fotografia, odată primită, rămâne în memorie toată sesiunea (nu pe disc); profilul și linkurile se reîmprospătează
+  const photo=cardPhoto?Promise.resolve(cardPhoto):S.api.photoSelf().then(j=>{if(j&&j.base64)cardPhoto=j;return j});
+  cardWarmup=Promise.allSettled([photo,S.api.cardProfileGet(),S.api.cardLinks()]);
   return cardWarmup;
 }
 const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situația mea","me"],["lib","Bibliotecă","lib"],["bros","Loji","temple"]];
@@ -1824,7 +1826,11 @@ async function openContactCard(){
   };
   paint();
   let warm=prefetchCard();
-  if(warm){const first=await warm;if(first[1].status!=="fulfilled"||first[2].status!=="fulfilled")warm=prefetchCard(true)}
+  if(warm){
+    const first=await warm;
+    const photoMissing=first[0].status!=="fulfilled"&&String(first[0].reason&&first[0].reason.message||"")!=="photo_unavailable";
+    if(photoMissing||first[1].status!=="fulfilled"||first[2].status!=="fulfilled")warm=prefetchCard(true);
+  }
   const results=await (warm||Promise.allSettled([
     Promise.reject(Error("photo_not_supported")),
     Promise.reject(Error("profile_not_supported")),
@@ -1957,7 +1963,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.22-32";
+const APP_VERSION="2026.10.22-33";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
