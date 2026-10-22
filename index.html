@@ -518,7 +518,7 @@ function serverAdapter(token){
     return j;
   }
   // citirile (date, documente) se mai încearcă o dată, în liniște, dacă eșuează din cauza rețelei sau a serviciului
-  async function retry(fn){try{return await fn()}catch(err){if(!(err&&(err.status===0||err.status>=500)))throw err;await new Promise(r=>setTimeout(r,1500));return fn()}}
+  async function retry(fn){try{return await fn()}catch(err){if(!(err&&(err.status===0||err.status>=500))||err.message==="photo_unavailable")throw err;await new Promise(r=>setTimeout(r,1500));return fn()}}
   const pl=jwtPayload(token)||{};
   return {
     mode:"google",
@@ -1839,7 +1839,7 @@ async function openContactCard(){
       for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
       photoUrl=URL.createObjectURL(new Blob([bytes],{type:"image/png"}));
     }catch(e){failed=true}
-  }else failed=true;
+  }else if(String(results[0].reason&&results[0].reason.message||"")!=="photo_unavailable")failed=true; // fără fotografie nu e o eroare
   if(results[1].status==="fulfilled"&&results[1].value.profile)profile=results[1].value.profile;
   else failed=true;
   if(results[2].status==="fulfilled")cardLinks={masonic:results[2].value.masonic||"",profan:results[2].value.profan||""};
@@ -1957,7 +1957,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.22-31";
+const APP_VERSION="2026.10.22-32";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
