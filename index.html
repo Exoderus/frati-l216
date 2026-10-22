@@ -637,8 +637,24 @@ const CREST='<img class="crestimg" src="logo.png" width="52" height="52" alt="Si
 
 /* ============ STARE ============ */
 const S={api:null,me:null,tab:"home",data:{},err:{},loading:true};
-/* Card preload: one shared in-memory request per authenticated app instance.
-   No localStorage/sessionStorage persistence of portraits or consent data. */
+/* Cartea de vizită se păstrează pe dispozitiv (profil, linkuri, fotografie micșorată),
+   ca să se deschidă instant, gata de scanare, și fără semnal. Se reîmprospătează în fundal.
+   La delogare se șterge, ca toate datele l216.* */
+const cardCacheKey=()=>"l216.card."+(S.me&&S.me.email||"");
+function cardCacheRead(){try{return JSON.parse(localStorage.getItem(cardCacheKey())||"null")}catch(_){return null}}
+function cardCacheWrite(patch){const c=cardCacheRead()||{};Object.assign(c,patch,{at:Date.now()});try{localStorage.setItem(cardCacheKey(),JSON.stringify(c))}catch(_){}}
+function shrinkPhoto(j){return new Promise(res=>{
+  if(!j||!j.base64)return res("");
+  const img=new Image();
+  img.onload=()=>{try{const m=320,k=Math.min(1,m/Math.max(img.width,img.height));const cv=document.createElement("canvas");cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res(cv.toDataURL("image/png"))}catch(_){res("")}};
+  img.onerror=()=>res("");img.src="data:image/png;base64,"+j.base64;
+})}
+function cardCacheFrom(r){
+  if(r[1].status==="fulfilled"&&r[1].value&&r[1].value.profile)cardCacheWrite({profile:r[1].value.profile});
+  if(r[2].status==="fulfilled"&&r[2].value)cardCacheWrite({links:{masonic:r[2].value.masonic||"",profan:r[2].value.profan||""}});
+  if(r[0].status==="fulfilled")shrinkPhoto(r[0].value).then(d=>{if(d)cardCacheWrite({photo:d})});
+  else if(String(r[0].reason&&r[0].reason.message||"")==="photo_unavailable")cardCacheWrite({photo:""});
+}
 let cardWarmup=null,cardWarmupAt=0,cardPhoto=null;
 function prefetchCard(fresh){
   if(!S.api?.cardProfileGet||!S.api?.photoSelf||!S.api?.cardLinks)return cardWarmup;
@@ -648,6 +664,7 @@ function prefetchCard(fresh){
   // fotografia, odată primită, rămâne în memorie toată sesiunea (nu pe disc); profilul și linkurile se reîmprospătează
   const photo=cardPhoto?Promise.resolve(cardPhoto):S.api.photoSelf().then(j=>{if(j&&j.base64)cardPhoto=j;return j});
   cardWarmup=Promise.allSettled([photo,S.api.cardProfileGet(),S.api.cardLinks()]);
+  cardWarmup.then(cardCacheFrom);
   return cardWarmup;
 }
 const TABS=[["home","Acasă","home"],["tinute","Ținute","tinute"],["me","Situația mea","me"],["lib","Bibliotecă","lib"],["bros","Loji","temple"]];
@@ -1750,7 +1767,7 @@ async function openContactCard(){
   el.innerHTML='<header><div class="wrap"><button class="vbtn" type="button" id="contactclose">Închide</button><h2>Cartea mea de vizită</h2></div></header><div class="fbody"><div class="wrap contact-panel" id="contactbody"></div></div>';
   document.body.append(el);document.body.style.overflow="hidden";
   let active=true,photoUrl="";
-  const close=()=>{active=false;if(photoUrl)URL.revokeObjectURL(photoUrl);el.remove();document.body.style.overflow=""};
+  const close=()=>{active=false;if(photoUrl&&photoUrl.startsWith("blob:"))URL.revokeObjectURL(photoUrl);el.remove();document.body.style.overflow=""};
   el.querySelector("#contactclose").onclick=close;
   el.addEventListener("keydown",e=>{if(e.key==="Escape")close()});
   el.querySelector("#contactclose").focus();
@@ -1819,12 +1836,21 @@ async function openContactCard(){
       const next={};(mode==="masonic"?fieldsMasonic:fieldsProfan).forEach(([key])=>next[key]=formEl.elements.namedItem(key).value.trim());
       booleans.filter(([key])=>mode==="masonic"?["showMasonic","shareMasonicPhoto"].includes(key):["showProfane","shareProfanePhoto"].includes(key)).forEach(([key])=>next[key]=formEl.elements.namedItem(key).checked);
       saving=true;formEl.querySelector("button[type=submit]").disabled=true;
-      try{const updated=await S.api.cardProfileSet(next);if(!active)return;profile=updated.profile;cardWarmup=null;const links=await S.api.cardLinks();if(!active)return;cardLinks={masonic:links.masonic||"",profan:links.profan||""};prefetchCard();editing=false;failed=false}
+      try{const updated=await S.api.cardProfileSet(next);if(!active)return;profile=updated.profile;cardWarmup=null;const links=await S.api.cardLinks();if(!active)return;cardLinks={masonic:links.masonic||"",profan:links.profan||""};cardCacheWrite({profile,links:cardLinks});prefetchCard();editing=false;failed=false}
       catch(e){if(!active)return;failed=true}
       saving=false;paint();
     };
   };
+  // 1) instant, din ce e păstrat pe dispozitiv
+  const kept=cardCacheRead();
+  if(kept&&kept.profile){
+    profile=Object.assign(profile,kept.profile);
+    if(kept.links)cardLinks={masonic:kept.links.masonic||"",profan:kept.links.profan||""};
+    if(kept.photo)photoUrl=kept.photo;
+    loading=false;
+  }
   paint();
+  // 2) reîmprospătare în fundal, fără să blocheze cartea
   let warm=prefetchCard();
   if(warm){
     const first=await warm;
@@ -1836,18 +1862,21 @@ async function openContactCard(){
     Promise.reject(Error("profile_not_supported")),
     Promise.reject(Error("links_not_supported"))
   ]));
-  if(!active)return;
+  if(!active||editing)return;
+  const hadKept=!!(kept&&kept.profile);
   if(results[0].status==="fulfilled"){
     try{
       const j=results[0].value;
       if(j.mimeType!=="image/png"||!j.base64)throw Error("invalid_photo");
       const bin=atob(j.base64),bytes=new Uint8Array(bin.length);
       for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+      if(photoUrl&&photoUrl.startsWith("blob:"))URL.revokeObjectURL(photoUrl);
       photoUrl=URL.createObjectURL(new Blob([bytes],{type:"image/png"}));
-    }catch(e){failed=true}
-  }else if(String(results[0].reason&&results[0].reason.message||"")!=="photo_unavailable")failed=true; // fără fotografie nu e o eroare
+    }catch(e){if(!photoUrl)failed=true}
+  }else if(String(results[0].reason&&results[0].reason.message||"")==="photo_unavailable")photoUrl="";
+  else if(!photoUrl)failed=true; // fără fotografie nu e o eroare
   if(results[1].status==="fulfilled"&&results[1].value.profile)profile=results[1].value.profile;
-  else failed=true;
+  else if(!hadKept)failed=true;
   if(results[2].status==="fulfilled")cardLinks={masonic:results[2].value.masonic||"",profan:results[2].value.profan||""};
   loading=false;paint();
 }
@@ -1963,7 +1992,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.22-33";
+const APP_VERSION="2026.10.22-34";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
