@@ -508,8 +508,11 @@ function serverAdapter(token){
   async function call(action,extra){
     if(pl.exp&&pl.exp*1000<Date.now()+30000)throw new ApiError(401,"expired");
     let r;
-    try{r=await fetch(CONFIG.SERVICE_URL,{method:"POST",body:JSON.stringify(Object.assign({token,action},extra||{}))})}
-    catch(e){throw new ApiError(0,"network")}
+    const ctl=typeof AbortController==="function"?new AbortController():null;
+    const timer=ctl?setTimeout(()=>ctl.abort(),45000):0; // un răspuns blocat nu mai ține ecranul în „Se încarcă…”
+    try{r=await fetch(CONFIG.SERVICE_URL,{method:"POST",body:JSON.stringify(Object.assign({token,action},extra||{})),signal:ctl?ctl.signal:undefined})}
+    catch(e){clearTimeout(timer);throw new ApiError(0,"network")}
+    clearTimeout(timer);
     let j;try{j=await r.json()}catch(_){throw new ApiError(r.status||500,"bad_response")}
     if(j&&j.error){const st=j.error==="unauthorized"?401:(j.error==="not_member"||j.error==="forbidden")?403:j.error==="bad_request"?400:500;const e=new ApiError(st,j.error);e.email=j.email;e.detail=j.message||"";throw e}
     return j;
@@ -636,9 +639,12 @@ const CREST='<img class="crestimg" src="logo.png" width="52" height="52" alt="Si
 const S={api:null,me:null,tab:"home",data:{},err:{},loading:true};
 /* Card preload: one shared in-memory request per authenticated app instance.
    No localStorage/sessionStorage persistence of portraits or consent data. */
-let cardWarmup=null;
-function prefetchCard(){
-  if(cardWarmup||!S.api?.cardProfileGet||!S.api?.photoSelf||!S.api?.cardLinks)return cardWarmup;
+let cardWarmup=null,cardWarmupAt=0;
+function prefetchCard(fresh){
+  if(!S.api?.cardProfileGet||!S.api?.photoSelf||!S.api?.cardLinks)return cardWarmup;
+  // o preîncărcare veche (peste 5 minute) sau eșuată nu se refolosește: se cere din nou
+  if(cardWarmup&&!fresh&&Date.now()-cardWarmupAt<5*60*1000)return cardWarmup;
+  cardWarmupAt=Date.now();
   cardWarmup=Promise.allSettled([S.api.photoSelf(),S.api.cardProfileGet(),S.api.cardLinks()]);
   return cardWarmup;
 }
@@ -1817,7 +1823,9 @@ async function openContactCard(){
     };
   };
   paint();
-  const results=await (prefetchCard()||Promise.allSettled([
+  let warm=prefetchCard();
+  if(warm){const first=await warm;if(first[1].status!=="fulfilled"||first[2].status!=="fulfilled")warm=prefetchCard(true)}
+  const results=await (warm||Promise.allSettled([
     Promise.reject(Error("photo_not_supported")),
     Promise.reject(Error("profile_not_supported")),
     Promise.reject(Error("links_not_supported"))
@@ -1949,7 +1957,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.22-30";
+const APP_VERSION="2026.10.22-31";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
