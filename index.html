@@ -1231,7 +1231,7 @@ function financeMe(){
         ${own.payments&&own.payments.length?`<ul class="list">${own.payments.map(p=>`<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><div class="t">${esc(p.date)} · ${esc(p.component)}</div><strong class="num">${widowLei(p.amount)}</strong></li>`).join("")}</ul>`:'<p class="small muted">Nu sunt încă înregistrate plăți.</p>'}
       </div>`:
       '<p class="small muted">Situația ta financiară nu a putut fi asociată în mod unic. Solicită verificarea la Trezorerie.</p>'}
-    <p class="small muted" style="margin-top:12px"><strong>*</strong> Pentru componentele încă neaprobate, valorile sunt cele de anul trecut și au caracter orientativ. Valorile aprobate sunt preluate din registrul actualizat.</p>
+    ${(finance.adoption.dues&&finance.adoption.gala)?"":`<p class="small muted" style="margin-top:12px"><strong>*</strong> Pentru componentele încă neaprobate, valorile sunt cele de anul trecut și au caracter orientativ. Valorile aprobate sunt preluate din registrul actualizat.</p>`}
   </section>`;
 }
 // Actualizează doar conținutul panoului deja deschis. Păstrează scrollul
@@ -1992,7 +1992,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.22-36";
+const APP_VERSION="2026.10.22-37";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
