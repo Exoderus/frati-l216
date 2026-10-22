@@ -308,15 +308,32 @@ function catalog_(level) {
 
 /* Cache doar pentru date comune. Continutul mare sau erorile cad inapoi la citirea directa. */
 function sharedCached_(key, ttl, fn) {
+  // Valorile mari (catalogul cu toată Biblioteca) se păstrează în bucăți: CacheService primește
+  // maximum ~100 KB pe cheie. Înainte, peste 45.000 de caractere catalogul nu se mai păstra deloc,
+  // iar fiecare deschidere de document reconstruia catalogul din Drive (8-10 s), cu erori aleatorii.
   const cache = CacheService.getScriptCache();
+  const base = "sh2_" + key;
   try {
-    const hit = cache.get("sh1_" + key);
-    if (hit !== null) return JSON.parse(hit);
+    const head = cache.get(base);
+    if (head !== null) {
+      if (head.indexOf("chunks:") !== 0) return JSON.parse(head);
+      const n = Number(head.slice(7));
+      const keys = []; for (let i = 0; i < n; i++) keys.push(base + "_" + i);
+      const parts = cache.getAll(keys);
+      if (keys.every(k => parts[k] != null)) return JSON.parse(keys.map(k => parts[k]).join(""));
+    }
   } catch (_) {}
   const value = fn();
   try {
     const json = JSON.stringify(value);
-    if (json.length < 45000) cache.put("sh1_" + key, json, ttl);
+    const SIZE = 40000; // caractere; cu diacritice rămâne sub 100 KB pe bucată
+    if (json.length <= SIZE) cache.put(base, json, ttl);
+    else if (json.length <= SIZE * 80) {
+      const parts = {}; let n = 0;
+      for (let i = 0; i < json.length; i += SIZE) parts[base + "_" + (n++)] = json.slice(i, i + SIZE);
+      cache.putAll(parts, ttl);
+      cache.put(base, "chunks:" + n, ttl);
+    }
   } catch (_) {}
   return value;
 }
@@ -802,8 +819,13 @@ function planCancel_(email, id) {
 function file_(id, level) {
   if (!/^[\w-]{10,}$/.test(id)) return { error: "bad_request" };
   // Controlul de grad ramane per solicitare in member_(). Catalogul are TTL 5 minute.
-  const allowed = catalogAllowedIds_(catalogCached_(level));
-  if (allowed.indexOf(id) < 0) return { error: "forbidden" };
+  // Lista ID-urilor permise (mică) se păstrează separat de catalog, ca deschiderea să fie rapidă.
+  let allowed = sharedCached_("ids_" + level, 300, () => catalogAllowedIds_(catalogCached_(level)));
+  if (allowed.indexOf(id) < 0) {
+    // document adăugat în ultimele minute: se verifică pe catalogul proaspăt
+    allowed = catalogAllowedIds_(catalog_(level));
+    if (allowed.indexOf(id) < 0) return { error: "forbidden" };
+  }
   const f = DriveApp.getFileById(id);
   const mime = f.getMimeType();
   const blob = /^application\/vnd\.google-apps\./.test(mime) ? f.getAs("application/pdf") : f.getBlob();
