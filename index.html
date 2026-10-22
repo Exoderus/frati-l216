@@ -1252,7 +1252,7 @@ function financePublic(){
       <div class="small muted">Gala Elitelor: ${esc(status.gala||"Neconfirmat")}</div>
     </div>${financeBadge(status.dues)}</li>`;
   }).join("");
-  return `<div class="card" style="margin-top:10px"><p class="small muted" style="margin:0 0 10px"><strong>*</strong> Cotizația și Gala Elitelor vor fi supuse votului Lojii. Valorile din anul precedent sunt doar orientative. Statusurile nominale nu includ sumele achitate sau sponsorizările.</p>
+  return `<div class="card" style="margin-top:10px"><p class="small muted" style="margin:0 0 10px"><strong>*</strong> Cotizația (3.500 lei) și Gala Elitelor (500 lei, separat de cotizație) au fost votate în ținuta din 22.10.6026. Statusurile nominale nu includ sumele achitate sau sponsorizările.</p>
      <ul class="list">${rows}</ul></div>`;
 }
 
@@ -1362,7 +1362,7 @@ function adminFinanceOverview(financial,formatMoney){
   const detailedTotal=donations.reduce((a,p)=>a+p.amount,0);
   return `<section class="card" aria-label="Situație financiară generală">
     <div class="label">Situația financiară generală · ${rows.length} frați</div>
-    <p class="small muted">Valori orientative până la adoptarea cotizațiilor prin votul Lojii. Totaluri calculate din registrul nominal actualizat.</p>
+    <p class="small muted">Cotizația (3.500 lei) și Gala Elitelor (500 lei) votate pe 22.10.6026. Totaluri calculate din registrul nominal actualizat.</p>
     ${snapshot("Metalele Lojii", "dues")}
     ${snapshot("Gala Elitelor", "gala")}
     <div class="finance-item"><strong>Sponsorizări și donații</strong>
@@ -1992,7 +1992,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.22-35";
+const APP_VERSION="2026.10.22-36";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
