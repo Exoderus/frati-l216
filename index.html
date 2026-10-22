@@ -506,6 +506,7 @@ function googleAdapter(token){
 
 function serverAdapter(token){
   async function call(action,extra){
+    if(pl.exp&&pl.exp*1000<Date.now()+30000)throw new ApiError(401,"expired");
     let r;
     try{r=await fetch(CONFIG.SERVICE_URL,{method:"POST",body:JSON.stringify(Object.assign({token,action},extra||{}))})}
     catch(e){throw new ApiError(0,"network")}
@@ -662,13 +663,23 @@ async function loadAll(forceFresh=false){
       if(!CONFIG.SHOW_NEWS)S.data.news=[];
       if(d.me){S.me.key=d.me.key;S.me.fisa=d.me.fisa||null;S.me.functieLoja=d.me.functieLoja||"";S.me.demnitateMLNR=d.me.demnitateMLNR||"";if(!fromCache)S.me.adminRole=d.me.adminRole||""}
     };
+    // un răspuns fără frate sau fără listă nu se afișează și nu se salvează niciodată
+    const valid=d=>!!(d&&d.me&&d.me.key&&Array.isArray(d.roster)&&d.roster.length);
     // 1) afișare imediată din ultima versiune salvată pe acest dispozitiv
     let cached=null;try{cached=JSON.parse(localStorage.getItem(CK)||"null")}catch(_){}
+    if(cached&&!valid(cached)){cached=null;try{localStorage.removeItem(CK)}catch(_){}}
     if(cached&&!forceFresh){apply(cached,true);S.loading=false;build()}
-    // 2) date proaspete în fundal
+    // 2) date proaspete în fundal; la pornire mai încercăm de câteva ori înainte să renunțăm
     try{
-      const d=await A.bootstrap();
-      apply(d);refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
+      let d=null,lastErr=null;
+      const waits=forceFresh?[0]:[0,2000,5000,10000];
+      for(const w of waits){
+        if(w)await new Promise(r=>setTimeout(r,w));
+        try{d=await A.bootstrap();if(valid(d))break;lastErr=new ApiError(500,"bad_response");d=null}
+        catch(err){lastErr=err;d=null;if(err&&(err.status===401||err.status===403))break}
+      }
+      if(!d)throw lastErr||new ApiError(500,"bad_response");
+      apply(d);S.lastGoodLoad=Date.now();refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
     }catch(e){
       if(e.status===401){store.del(AUTH_KEY);startLogin(true);return false}
       if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
@@ -1938,7 +1949,7 @@ async function boot(){
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.22-29";
+const APP_VERSION="2026.10.22-30";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
@@ -1962,9 +1973,33 @@ async function checkVersion(){
    iOS poate suspenda temporizatoarele; visibilitychange/pageshow le completeaza.
    Nu intrerupem niciodata modaluri sau operatiuni administrative. */
 let hiddenSince=0;
+/* Sesiunea Google durează o oră. Cu 5 minute înainte de expirare, sau dacă datele
+   n-au mai putut fi împrospătate de 10 minute, reluăm pornirea aplicației: login
+   silențios + date noi. E exact ce făcea manual delogarea și relogarea. */
+function keepSessionFresh(){
+  if(!S.api||S.api.mode!=="google"||document.visibilityState!=="visible")return false;
+  if(document.querySelector(".viewer")||S.adminBusy||document.querySelector("dialog[open],.modal.open"))return false;
+  const a=(()=>{try{return JSON.parse(store.get(AUTH_KEY)||"null")}catch(_){return null}})();
+  const exp=a&&a.exp||0;
+  if(exp&&exp<Date.now()+5*60*1000){
+    const k="l216.renew.at",last=+(sessionStorage.getItem(k)||0);
+    if(Date.now()-last<2*60*1000)return false; // fără bucle de redirecționare
+    sessionStorage.setItem(k,String(Date.now()));
+    store.del(AUTH_KEY);startLogin(true);return true;
+  }
+  const good=S.lastGoodLoad||0;
+  if(good&&Date.now()-good>10*60*1000){
+    const k="l216.reload.at",last=+(sessionStorage.getItem(k)||0);
+    if(Date.now()-last<5*60*1000)return false;
+    sessionStorage.setItem(k,String(Date.now()));
+    location.reload();return true;
+  }
+  return false;
+}
 async function refreshLiveData(forceOnResume=false){
   if(!S.api||S.api.mode!=="google"||S.loading||S.dataRefreshBusy||document.visibilityState!=="visible")return;
   if(document.querySelector(".viewer")||S.adminBusy)return;
+  if(keepSessionFresh())return;
   const elapsed=Date.now()-(S.lastDataRefresh||0);
   const minAge=forceOnResume?30*1000:3*60*1000;
   if(elapsed<minAge)return;
