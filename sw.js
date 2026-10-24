@@ -20,7 +20,10 @@ self.addEventListener("notificationclick", event => {
   event.notification.close();
   const target = new URL((event.notification.data && event.notification.data.url) || "./", self.registration.scope).href;
   event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
-    for (const c of list) if (c.url.startsWith(self.registration.scope) && "focus" in c) return c.focus();
+    for (const c of list) if (c.url.startsWith(self.registration.scope) && "focus" in c) {
+      c.postMessage({ type: "l216-open", url: target });
+      return c.focus();
+    }
     return self.clients.openWindow(target);
   }));
 });

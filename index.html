@@ -408,6 +408,15 @@ button.navbtn{cursor:pointer;font-family:inherit}
 .push-log li{font-size:13px;line-height:1.4;padding:8px 0;border-top:1px solid var(--line);list-style:none}
 .push-log{padding:0;margin:6px 0 0}
 .push-names{font-size:13px;line-height:1.5;color:var(--muted);margin:6px 0 0}
+.ann-row{display:flex;align-items:center;gap:10px;width:100%;margin:0 0 12px;padding:10px 12px;border-radius:12px;border:1px solid var(--gold);background:var(--gold-soft);color:var(--gold-ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.ann-row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ann-row b{font-weight:600}
+.push-dlg.ann-dlg{border:1px solid var(--gold)}
+.ann-dlg .ann-head{display:flex;align-items:center;gap:8px;color:var(--gold-ink)}
+.ann-dlg .ann-text{font-size:16px;line-height:1.55;margin:14px 0 4px;white-space:pre-wrap;word-wrap:break-word}
+.ann-dlg .pbtn.main,.push-dlg .pbtn.main.gold{background:var(--gold);border-color:var(--gold);color:#1b1608}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .push-dlg .pbtn.main{background:var(--gold);border-color:var(--gold);color:#1b1608}}
+:root[data-theme="dark"] .push-dlg .pbtn.main{background:var(--gold);border-color:var(--gold);color:#1b1608}
 .admin-view-switch{margin-bottom:16px}
 .admin-view-switch button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgb(0 0 0 / .12)}
 .regwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
@@ -662,6 +671,7 @@ const IC={
   ext:'<path d="M14 4h6v6M20 4l-9 9M18 14v5H5V6h5"/>'
 };
 const svg=(n,s=22,w=1.7)=>`<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
+IC.bell='<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>';
 const CREST='<img class="crestimg" src="logo.png" width="52" height="52" alt="Sigla R∴L∴ Transilvania nr. 216">';
 
 /* ============ STARE ============ */
@@ -709,6 +719,7 @@ async function loadAll(forceFresh=false){
       S.data.events=(d.events||[]).map(evMap);
       S.data.plans=d.plans||[];S.data.plansOn=Array.isArray(d.plans);
       S.data.excursions=d.excursions||[];
+      S.data.announce=Array.isArray(d.announce)?d.announce:[];
       S.data.widow=d.widow||null;
       S.data.finance=d.finance||null;
       if(d.errors&&d.errors.finance)S.err.finance={status:500};
@@ -733,7 +744,7 @@ async function loadAll(forceFresh=false){
         catch(err){lastErr=err;d=null;if(err&&(err.status===401||err.status===403))break}
       }
       if(!d)throw lastErr||new ApiError(500,"bad_response");
-      apply(d);S.lastGoodLoad=Date.now();pushAfterLoad(d);refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
+      apply(d);S.lastGoodLoad=Date.now();pushAfterLoad(d);setTimeout(annCheck,300);refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
     }catch(e){
       if(e.status===401){store.del(AUTH_KEY);startLogin(true);return false}
       if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
@@ -1128,7 +1139,7 @@ function openLucrare(){
 }
 
 function vHome(v){
-  const nx=M.next;let h="";
+  const nx=M.next;let h=annRow();
   if(M.news.length){
     h+=`<section aria-label="Noutăți" class="news">${M.news.map(n=>`<article class="card newsitem"><div class="label">${n.pub.getTime()===today().getTime()?"Astăzi":esc(fmtDM(n.pub))}</div><h3>${esc(n.titlu)}</h3>${n.text?`<p>${esc(n.text)}</p>`:""}${/^https?:\/\//.test(n.link)?`<a class="newslink" href="${esc(n.link)}" target="_blank" rel="noopener">Deschide ${svg("ext",14)}</a>`:""}</article>`).join("")}</section>`;
   }
@@ -2122,6 +2133,55 @@ function pushPrompt(st){
   try{dlg.showModal()}catch(_){dlg.setAttribute("open","")}
 }
 
+/* Anunțul urgent în aplicație: fereastră la deschidere până la „Am citit”,
+   plus un rând pe Acasă, 3 zile, din care poate fi recitit. */
+const ANN_READ="l216.ann.read";
+try{const q=new URLSearchParams(location.search).get("anunt");if(q)S.annForce=q}catch(_){}
+function annList(){return (S.data&&Array.isArray(S.data.announce))?S.data.announce:[]}
+function annRead(){try{return JSON.parse(store.get(ANN_READ)||"[]")}catch(_){return []}}
+function annMark(id){const r=annRead().filter(x=>x!==id);r.push(id);store.set(ANN_READ,JSON.stringify(r.slice(-50)))}
+function annTitle(a){return a.by==="MV"?"Anunț de la Maestrul Venerabil":"Anunț de la Secretar"}
+function annWhen(a){const d=new Date(a.at);return d.toLocaleDateString("ro-RO",{weekday:"long",day:"numeric",month:"long"})+" · "+d.toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"})}
+function annDay(a){const d=new Date(a.at),t=today(),x=new Date(d);x.setHours(0,0,0,0);const n=Math.round((t-x)/864e5);return n===0?"azi":n===1?"ieri":d.toLocaleDateString("ro-RO",{day:"numeric",month:"short"})}
+function annClearParam(){try{const u=new URL(location.href);if(u.searchParams.has("anunt")){u.searchParams.delete("anunt");history.replaceState(null,"",u.pathname+(u.search||"")+u.hash)}}catch(_){}}
+function annRow(){
+  const a=annList().filter(x=>Date.now()-x.at<3*864e5).sort((x,y)=>y.at-x.at)[0];
+  if(!a)return "";
+  return `<button type="button" class="ann-row" data-annopen="${esc(a.id)}">${svg("bell",17)}<span class="t"><b>${a.by==="MV"?"MV":"Secretar"} · ${esc(annDay(a))}:</b> ${esc(a.text)}</span>${svg("chev",16)}</button>`;
+}
+function annCheck(){
+  if(document.querySelector("dialog.ann-dlg"))return;
+  const list=annList(),read=new Set(annRead());
+  let q=list.filter(a=>!read.has(a.id)).sort((a,b)=>a.at-b.at);
+  if(S.annForce){const f=list.find(a=>a.id===S.annForce);S.annForce="";annClearParam();if(f&&!q.includes(f))q=[f]}
+  if(q.length)annShow(q);
+}
+function annShow(q){
+  const a=q[0],rest=q.slice(1);
+  const open=document.querySelector("dialog.push-dlg:not(.ann-dlg)");if(open)open.close();
+  const dlg=document.createElement("dialog");
+  dlg.className="push-dlg ann-dlg";
+  dlg.innerHTML=`<div class="pd-in"><div class="ann-head">${svg("bell",18)}<span class="label" style="color:inherit">Anunț urgent</span></div>
+    <h3>${esc(annTitle(a))}</h3><div class="small muted">${esc(annWhen(a))}</div>
+    <div class="ann-text">${esc(a.text)}</div>
+    <button type="button" class="pbtn main" data-a="read">${rest.length?`Am citit · încă ${rest.length}`:"Am citit"}</button></div>`;
+  dlg.addEventListener("cancel",e=>e.preventDefault());
+  dlg.querySelector("[data-a=read]").onclick=()=>{annMark(a.id);dlg.close()};
+  dlg.addEventListener("close",()=>{dlg.remove();if(rest.length)setTimeout(()=>annShow(rest),250)});
+  document.body.appendChild(dlg);
+  try{dlg.showModal()}catch(_){dlg.setAttribute("open","")}
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest&&e.target.closest("[data-annopen]");if(!b)return;
+  const a=annList().find(x=>x.id===b.dataset.annopen);if(a)annShow([a]);
+});
+/* Notificare atinsă cu aplicația deja deschisă: luăm datele noi și arătăm anunțul */
+if("serviceWorker" in navigator)navigator.serviceWorker.addEventListener("message",e=>{
+  const d=e.data||{};if(d.type!=="l216-open")return;
+  try{const id=new URL(d.url,location.href).searchParams.get("anunt");if(id)S.annForce=id}catch(_){}
+  if(S.api&&S.api.mode==="google")loadAll(true).then(()=>annCheck()).catch(()=>{});
+});
+
 /* Fila „Anunțuri” din vederea de demnitar — Secretarul și MV */
 async function vPushAdmin(host,role){
   host.innerHTML=`<section class="card"><div class="state">Se încarcă situația notificărilor…</div></section>`;
@@ -2204,7 +2264,7 @@ async function vPushAdmin(host,role){
 }
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.24-38";
+const APP_VERSION="2026.10.24-39";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{

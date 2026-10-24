@@ -652,8 +652,10 @@ function bootstrap_(me, email) {
       events: [],
       plans: [],
       excursions: [],
+      announce: [],
       errors: {}
     };
+    try { out.announce = pushRecent_(); } catch (_) { out.announce = []; }
     try { out.excursions = bootstrapTimed_("excursions", () => sharedCached_("excursions", 120, () => excursions_()), metrics); }
     catch (e) { out.errors.excursions = String(e.message || e); }
     try { out.plans = bootstrapTimed_("plans", () => plans_(email), metrics); }
@@ -924,10 +926,18 @@ function pushSend_(me, email, req) {
     const last = pushLog_()[0];
     if (last && last.text === text && Date.now() - last.at < 5 * 60 * 1000) return { ok: false, duplicate: true };
     const A = pushAudience_();
-    const r = pushDeliver_(A.tokens, { title: title, body: text, tag: "l216-anunt-" + Date.now() });
-    pushAddLog_({ at: Date.now(), by: role === "mv" ? "MV" : "Secretar", text: text, sent: r.sent, failed: r.failed });
+    const at = Date.now();
+    const r = pushDeliver_(A.tokens, { title: title, body: text, tag: "l216-anunt-" + at, url: "./?anunt=" + at });
+    pushAddLog_({ at: at, by: role === "mv" ? "MV" : "Secretar", text: text, sent: r.sent, failed: r.failed });
     return { ok: true, sent: r.sent, failed: r.failed };
   });
+}
+
+/* Anunțurile urgente din ultimele 7 zile, pentru fereastra din aplicație (fără reamintirile automate) */
+function pushRecent_() {
+  const cut = Date.now() - 7 * 864e5;
+  return pushLog_().filter(l => l.at >= cut && (l.by === "Secretar" || l.by === "MV")).slice(0, 5)
+    .map(l => ({ id: String(l.at), at: l.at, by: l.by, text: l.text }));
 }
 
 function pushAddLog_(entry) {
