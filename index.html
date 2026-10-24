@@ -383,6 +383,31 @@ button.navbtn{cursor:pointer;font-family:inherit}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:var(--line)}
 .seg button{border:none;background:transparent;border-radius:9px;height:38px;font-size:14px;font-weight:500;color:var(--muted);cursor:pointer}
 .seg button[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgb(0 0 0 / .12)}
+/* Notificări: cererea de activare și fila „Anunțuri” */
+.push-dlg{border:none;border-radius:18px;padding:0;max-width:380px;width:calc(100% - 32px);background:var(--surface);color:var(--fg);box-shadow:0 20px 60px rgb(0 0 0 / .35)}
+.push-dlg::backdrop{background:rgb(10 15 30 / .55)}
+.push-dlg .pd-in{padding:22px 20px 18px}
+.push-dlg .pd-ic{width:48px;height:48px;border-radius:14px;background:var(--band);color:var(--gold);display:grid;place-items:center;font-family:var(--f-display);font-size:18px;font-weight:600}
+.push-dlg h3{font-family:var(--f-display);font-size:25px;line-height:1.15;margin:14px 0 8px;font-weight:600}
+.push-dlg p,.push-dlg li{font-size:14px;line-height:1.5;margin:0 0 8px}
+.push-dlg ol{padding-left:20px;margin:6px 0 12px}
+.push-dlg .pd-msg{font-size:13px;margin:8px 0 0;min-height:1em}
+.pbtn{display:flex;align-items:center;justify-content:center;width:100%;height:46px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;font-weight:600;font-size:15px;cursor:pointer;margin-top:8px}
+.pbtn.main{background:var(--band);border-color:var(--band);color:var(--band-fg)}
+.pbtn:disabled{opacity:.6;cursor:default}
+.pbtn.slim{height:38px;font-size:13px;font-weight:500}
+.push-ta{width:100%;box-sizing:border-box;min-height:88px;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:15px;line-height:1.45;color:var(--fg);background:var(--bg);resize:vertical}
+.push-prev{display:flex;gap:10px;align-items:flex-start;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:6px 0 12px}
+.push-prev .pi{width:32px;height:32px;border-radius:8px;background:var(--band);color:var(--gold);display:grid;place-items:center;font-family:var(--f-display);font-size:13px;flex:none}
+.push-prev .pt{font-size:13px;font-weight:600}
+.push-prev .pb{font-size:13px;line-height:1.35;word-wrap:break-word;color:var(--muted)}
+.push-conf{margin-top:10px;border:1px solid var(--gold);background:var(--gold-soft);color:var(--gold-ink);border-radius:12px;padding:12px}
+.push-conf .row{display:flex;gap:8px}
+.push-ok{margin-top:10px;border-radius:12px;padding:10px 12px;background:var(--p-soft);color:var(--p);font-size:13px}
+.push-err{margin-top:10px;border-radius:12px;padding:10px 12px;background:var(--n-soft);color:var(--n);font-size:13px}
+.push-log li{font-size:13px;line-height:1.4;padding:8px 0;border-top:1px solid var(--line);list-style:none}
+.push-log{padding:0;margin:6px 0 0}
+.push-names{font-size:13px;line-height:1.5;color:var(--muted);margin:6px 0 0}
 .admin-view-switch{margin-bottom:16px}
 .admin-view-switch button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 3px rgb(0 0 0 / .12)}
 .regwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
@@ -531,6 +556,10 @@ function serverAdapter(token){
     adminRead(){return retry(()=>call("admin_read"))},
     attendanceSet(data){return call("attendance_set",data)},
     paymentAdd(data){return call("payment_add",data)},
+    pushRegister(data){return call("push_register",data)},
+    pushUnregister(data){return call("push_unregister",data)},
+    pushStatus(){return retry(()=>call("push_status"))},
+    pushSend(data){return call("push_send",data)},
     planAdd(data){return call("plan_add",data)},
     planCancel(id){return call("plan_cancel",{id})},
     async file(id){const j=await retry(()=>call("file",{id}));const bin=atob(j.b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:j.mime||"application/octet-stream"})}
@@ -704,7 +733,7 @@ async function loadAll(forceFresh=false){
         catch(err){lastErr=err;d=null;if(err&&(err.status===401||err.status===403))break}
       }
       if(!d)throw lastErr||new ApiError(500,"bad_response");
-      apply(d);S.lastGoodLoad=Date.now();refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
+      apply(d);S.lastGoodLoad=Date.now();pushAfterLoad(d);refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
     }catch(e){
       if(e.status===401){store.del(AUTH_KEY);startLogin(true);return false}
       if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
@@ -1394,20 +1423,23 @@ function vAdmin(v){
     return;
   }
   const data=S.adminData,role=S.me.adminRole;
-  const selected=S.adminMode||"finance";
+  const canPush=role==="secretar"||role==="mv";
+  const selected=(S.adminMode==="push"&&!canPush)?"finance":(S.adminMode||"finance");
   const formatMoney=n=>Number(n||0).toLocaleString("ro-RO",{maximumFractionDigits:2})+" lei";
   const choices='<option value="">Selectează un frate</option>'+data.financial.map(x=>`<option value="${esc(x.key)}">${esc(x.name)}</option>`).join("");
   const labels={secretar:"Secretariat",trezorier:"Trezorerie",mv:"Maestru Venerabil",secretar_zonal:"Secretariat Zonal",demnitar_mlnr:"Demnitar MLNR",s1:"Prim Supraveghetor",s2:"Secund Supraveghetor",orator:"Orator",expert:"Expert"};
   v.innerHTML=adminSwitchHTML()+`<div class="card"><div class="label">Administrare · ${esc(labels[role]||"Consultare")}</div>
       <p class="small muted" style="margin-bottom:0">Acces autorizat. Operațiunile sunt înscrise direct în registrele Google Sheets.</p></div>
-    <div class="seg" role="tablist">
+    <div class="seg" role="tablist"${canPush?' style="grid-template-columns:repeat(3,1fr)"':''}>
       <button role="tab" type="button" data-admin-mode="attendance" aria-selected="${selected==="attendance"}">Prezențe</button>
-      <button role="tab" type="button" data-admin-mode="finance" aria-selected="${selected==="finance"}">Trezorerie</button>
+      <button role="tab" type="button" data-admin-mode="finance" aria-selected="${selected==="finance"}">Trezorerie</button>${canPush?`
+      <button role="tab" type="button" data-admin-mode="push" aria-selected="${selected==="push"}">Anunțuri</button>`:""}
     </div>
     <div id="admin-body"></div>`;
   bindAdminSwitch(v);
   v.querySelectorAll("[data-admin-mode]").forEach(b=>b.onclick=()=>{S.adminMode=b.dataset.adminMode;vAdmin(v)});
   const host=v.querySelector("#admin-body");
+  if(selected==="push"){vPushAdmin(host,role);return}
   if(selected==="attendance"){
     const dates=data.dates||[];
     const selectedDate=dates.includes(S.adminDate)?S.adminDate:(dates.filter(x=>parseDMY(x)&&parseDMY(x)<=today()).slice(-1)[0]||dates[0]||"");
@@ -1991,8 +2023,188 @@ async function boot(){
 }
 render=(orig=>function(){if(!S.api)return;orig()})(render);
 
+/* ============ NOTIFICĂRI ============
+   Doar două tipuri: reamintirea din ziua ținutei (automată, din calendar) și anunțul
+   urgent trimis de Secretar sau de MV. Permisiunea o dă fratele, o singură dată.
+   Biblioteca Firebase se încarcă doar la activare și la reînnoirea săptămânală a tokenului. */
+const PUSH={
+  SDK:"https://www.gstatic.com/firebasejs/13.1.0/",
+  CONFIG:{apiKey:"AIzaSyCVs1KJmDoGEPsF6SeVAb0zPFvrU-pgkY8",authDomain:"spatiul-fratilor-l216.firebaseapp.com",projectId:"spatiul-fratilor-l216",storageBucket:"spatiul-fratilor-l216.firebasestorage.app",messagingSenderId:"1081751748144",appId:"1:1081751748144:web:0df8d12380ed186487b7f5"},
+  VAPID:"BGCajFJhDHkR00us7bVW_ZakncfIV3iljYSKl5VAn3ZfB3pF3cZLtghciNh59AeJunrjvvI7q3CO_FTvsbqEl7o",
+  TOKEN_KEY:"l216.push.token",AT_KEY:"l216.push.at",LATER_KEY:"l216.push.later",
+  MAX:160
+};
+const pushIOS=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const pushStandalone=()=>(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;
+const pushSupported=()=>"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
+function pushState(){
+  if(pushSupported())return Notification.permission==="granted"?(store.get(PUSH.TOKEN_KEY)?"on":"granted"):Notification.permission;
+  if(pushIOS()&&!pushStandalone())return "ios-install";
+  return "unsupported";
+}
+async function pushToken(){
+  await navigator.serviceWorker.register("sw.js",{scope:"./"});
+  const reg=await navigator.serviceWorker.ready;
+  const [fa,fm]=await Promise.all([import(PUSH.SDK+"firebase-app.js"),import(PUSH.SDK+"firebase-messaging.js")]);
+  const app=fa.getApps()[0]||fa.initializeApp(PUSH.CONFIG);
+  return fm.getToken(fm.getMessaging(app),{vapidKey:PUSH.VAPID,serviceWorkerRegistration:reg});
+}
+async function pushRegister(){
+  const tok=await pushToken();
+  if(!tok)throw new Error("no_token");
+  const prev=store.get(PUSH.TOKEN_KEY)||"";
+  const platform=pushIOS()?"ios":/Android/i.test(navigator.userAgent)?"android":"web";
+  await S.api.pushRegister({fcmToken:tok,previous:prev&&prev!==tok?prev:"",platform});
+  store.set(PUSH.TOKEN_KEY,tok);store.set(PUSH.AT_KEY,String(Date.now()));
+  return tok;
+}
+/* Se apelează direct din apăsarea butonului: iPhone-ul cere gestul fratelui. */
+async function pushEnable(){
+  const perm=await Notification.requestPermission();
+  if(perm!=="granted")return perm;
+  await pushRegister();
+  return "on";
+}
+function pushAfterLoad(d){
+  if(!S.api||S.api.mode!=="google"||S.pushChecked)return;
+  S.pushChecked=true;
+  S.me.pushOff=!!(d&&d.me&&d.me.pushOff);
+  if(S.me.pushOff)return;
+  const st=pushState();
+  if(st==="on"){if(Date.now()-(+(store.get(PUSH.AT_KEY)||0))>7*864e5)pushRegister().catch(()=>{});return}
+  if(st==="granted"){pushRegister().catch(()=>{});return}
+  if(st!=="default"&&st!=="ios-install")return;
+  try{if(sessionStorage.getItem(PUSH.LATER_KEY))return}catch(_){}
+  setTimeout(()=>{if(!document.querySelector("dialog[open],.viewer"))pushPrompt(st)},1500);
+}
+function pushPrompt(st){
+  const dlg=document.createElement("dialog");
+  dlg.className="push-dlg";
+  const later=()=>{try{sessionStorage.setItem(PUSH.LATER_KEY,"1")}catch(_){}dlg.close()};
+  if(st==="ios-install"){
+    dlg.innerHTML=`<div class="pd-in"><div class="pd-ic">216</div>
+      <h3>Adaugă aplicația pe ecran</h3>
+      <p>Pe iPhone, notificările lojii merg doar din aplicația pusă pe ecranul principal.</p>
+      <ol><li>Apasă butonul <b>Distribuie</b> din Safari (pătratul cu săgeata în sus).</li>
+      <li>Alege <b>Adaugă pe ecranul principal</b>, apoi <b>Adaugă</b>.</li>
+      <li>Deschide aplicația de pe ecran și apasă <b>Activează notificările</b>.</li></ol>
+      <p class="small muted">Trebuie iOS 16.4 sau mai nou.</p>
+      <button type="button" class="pbtn main" data-a="ok">Am înțeles</button></div>`;
+    dlg.querySelector("[data-a=ok]").onclick=later;
+  }else{
+    dlg.innerHTML=`<div class="pd-in"><div class="pd-ic">216</div>
+      <h3>Activează notificările lojii</h3>
+      <p>Primești pe telefon doar două lucruri: reamintirea din ziua ținutei și anunțurile urgente ale Secretarului sau ale Maestrului Venerabil.</p>
+      <p class="small muted">Vin și cu aplicația închisă. Telefonul îți va cere permisiunea o singură dată.</p>
+      <button type="button" class="pbtn main" data-a="on">Activează notificările</button>
+      <button type="button" class="pbtn" data-a="later">Mai târziu</button>
+      <div class="pd-msg" role="status"></div></div>`;
+    const btn=dlg.querySelector("[data-a=on]"),msg=dlg.querySelector(".pd-msg");
+    dlg.querySelector("[data-a=later]").onclick=later;
+    btn.onclick=async()=>{
+      btn.disabled=true;btn.textContent="Se activează…";msg.className="pd-msg";msg.textContent="";
+      try{
+        const r=await pushEnable();
+        if(r==="on"){msg.className="pd-msg push-ok";msg.textContent="Gata, notificările sunt active.";setTimeout(()=>dlg.close(),1600);return}
+        msg.className="pd-msg push-err";
+        msg.textContent=r==="denied"?"Ai refuzat permisiunea. O poți porni oricând din setările telefonului, la notificări pentru această aplicație.":"Permisiunea nu a fost acordată.";
+        btn.textContent="Activează notificările";btn.disabled=r==="denied";
+      }catch(e){
+        msg.className="pd-msg push-err";msg.textContent="Nu am putut activa notificările acum. Încearcă din nou la următoarea deschidere.";
+        btn.textContent="Încearcă din nou";btn.disabled=false;
+        console.warn("push",e);
+      }
+    };
+  }
+  dlg.addEventListener("close",()=>dlg.remove());
+  dlg.addEventListener("cancel",()=>{try{sessionStorage.setItem(PUSH.LATER_KEY,"1")}catch(_){}});
+  document.body.appendChild(dlg);
+  try{dlg.showModal()}catch(_){dlg.setAttribute("open","")}
+}
+
+/* Fila „Anunțuri” din vederea de demnitar — Secretarul și MV */
+async function vPushAdmin(host,role){
+  host.innerHTML=`<section class="card"><div class="state">Se încarcă situația notificărilor…</div></section>`;
+  let st;
+  try{st=await S.api.pushStatus()}
+  catch(e){if(host.isConnected)host.innerHTML=`<section class="card"><div class="state err">Nu am putut încărca situația notificărilor. <button class="cta" id="push-retry">Reîncearcă</button></div></section>`;const b=host.querySelector("#push-retry");if(b)b.onclick=()=>vPushAdmin(host,role);return}
+  if(!host.isConnected||S.adminMode!=="push")return;
+  const title=role==="mv"?"Anunț de la Maestrul Venerabil":"Anunț de la Secretar";
+  const people=st.people||[],reach=people.filter(p=>p.on&&!p.off),without=people.filter(p=>!p.on&&!p.off),off=people.filter(p=>p.off);
+  const fmt=t=>new Date(t).toLocaleString("ro-RO",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+  const mine=pushState();
+  const draft=S.pushDraft||"";
+  host.innerHTML=`<section class="card">
+      <div class="label">Anunț urgent</div>
+      <p class="small muted" style="margin:6px 0 12px">Ajunge ca notificare pe telefoanele fraților, chiar cu aplicația închisă. Pentru o schimbare de oră, o ținută amânată sau o veste tristă. Restul rămâne pe WhatsApp.</p>
+      ${mine!=="on"&&pushSupported()?`<div class="push-conf" style="margin:0 0 12px"><div class="small" style="margin-bottom:6px">Pe acest dispozitiv notificările nu sunt active, deci nu vei vedea nici testul.</div><button type="button" class="pbtn slim" id="push-self">Activează pe acest dispozitiv</button><div class="small" id="push-self-msg" style="margin-top:6px"></div></div>`:""}
+      <textarea class="push-ta" id="push-text" maxlength="${PUSH.MAX}" placeholder="Ținuta de joi începe la 19:30, nu la 19:00.">${esc(draft)}</textarea>
+      <div class="small muted" style="display:flex;justify-content:space-between;margin:4px 2px 10px"><span id="push-hint"></span><span id="push-count">0/${PUSH.MAX}</span></div>
+      <div class="small muted">Așa apare pe telefon</div>
+      <div class="push-prev"><div class="pi">216</div><div style="min-width:0;flex:1"><div class="pt">${esc(title)}</div><div class="pb" id="push-prev">…</div></div></div>
+      <div class="small muted" style="margin-bottom:4px">Ajunge la ${reach.length} ${reach.length===1?"frate":"frați"} din ${people.length}.</div>
+      <button type="button" class="pbtn main" id="push-send">Trimite tuturor</button>
+      <button type="button" class="pbtn slim" id="push-test">Trimite un test doar mie</button>
+      <div id="push-conf" class="push-conf" hidden>
+        <div style="font-weight:600;font-size:14px">Trimiți anunțul?</div>
+        <div class="small" style="margin:4px 0 10px">Pleacă imediat către ${reach.length} ${reach.length===1?"frate":"frați"} și nu mai poate fi retras.</div>
+        <div class="row"><button type="button" class="pbtn" id="push-no" style="margin:0">Anulează</button><button type="button" class="pbtn main" id="push-yes" style="margin:0">Da, trimite</button></div>
+      </div>
+      <div id="push-res" role="status"></div>
+    </section>
+    <section class="card" style="margin-top:12px">
+      <div class="label">Cine primește</div>
+      <p style="margin:8px 0 4px;font-size:15px"><b>${reach.length}</b> din ${people.length} frați au notificările active.</p>
+      ${without.length?`<details style="margin-top:8px"><summary class="small">Fără notificări activate (${without.length})</summary><div class="push-names">${without.map(p=>esc(p.name)).join(", ")}</div></details>`:""}
+      ${off.length?`<details style="margin-top:8px"><summary class="small">Oprite la cerere (${off.length})</summary><div class="push-names">${off.map(p=>esc(p.name)).join(", ")}</div></details>`:""}
+      <p class="small muted" style="margin:10px 0 0">Pentru un frate care nu vrea notificări, scrie „Nu” în coloana <b>Notificări</b> din registrul „Frați activi”.</p>
+    </section>
+    <section class="card" style="margin-top:12px">
+      <div class="label">Ultimele trimiteri</div>
+      ${(st.log||[]).length?`<ul class="push-log">${st.log.map(l=>`<li><span class="muted">${esc(fmt(l.at))} · ${esc(l.by)}</span><br>${esc(l.text)}<br><span class="muted">primit pe ${l.sent} ${l.sent===1?"dispozitiv":"dispozitive"}${l.failed?` · ${l.failed} eșuate`:""}</span></li>`).join("")}</ul>`:`<p class="small muted" style="margin:8px 0 0">Nu s-a trimis încă nimic.</p>`}
+    </section>`;
+  const ta=host.querySelector("#push-text"),prev=host.querySelector("#push-prev"),cnt=host.querySelector("#push-count"),hint=host.querySelector("#push-hint");
+  const conf=host.querySelector("#push-conf"),res=host.querySelector("#push-res"),sendB=host.querySelector("#push-send"),testB=host.querySelector("#push-test");
+  const text=()=>ta.value.replace(/\s+/g," ").trim();
+  const upd=()=>{S.pushDraft=ta.value;prev.textContent=text()||"…";cnt.textContent=ta.value.length+"/"+PUSH.MAX;hint.textContent="";conf.hidden=true};
+  ta.oninput=()=>{upd();res.innerHTML=""};upd();
+  const need=()=>{if(text())return true;hint.style.color="var(--n)";hint.textContent="Scrie întâi anunțul.";ta.focus();return false};
+  const show=(ok,html)=>{res.innerHTML=`<div class="${ok?"push-ok":"push-err"}">${html}</div>`};
+  sendB.onclick=()=>{if(!need())return;res.innerHTML="";conf.hidden=false};
+  host.querySelector("#push-no").onclick=()=>{conf.hidden=true};
+  host.querySelector("#push-yes").onclick=async()=>{
+    const yes=host.querySelector("#push-yes");yes.disabled=true;yes.textContent="Se trimite…";
+    try{
+      const r=await S.api.pushSend({text:text()});
+      if(r.duplicate){conf.hidden=true;show(false,"Același anunț a plecat acum câteva minute. Nu l-am trimis a doua oară.");return}
+      S.pushDraft="";
+      await vPushAdmin(host,role);
+      const box=host.querySelector("#push-res");
+      if(box)box.innerHTML=`<div class="push-ok">Trimis. A ajuns pe ${r.sent} ${r.sent===1?"dispozitiv":"dispozitive"}${r.failed?`, ${r.failed} au eșuat`:""}.</div>`;
+    }catch(e){conf.hidden=true;show(false,"Trimiterea a eșuat. Încearcă din nou.");}
+    finally{yes.disabled=false;yes.textContent="Da, trimite"}
+  };
+  testB.onclick=async()=>{
+    if(!need())return;
+    testB.disabled=true;testB.textContent="Se trimite testul…";
+    try{
+      const r=await S.api.pushSend({text:text(),test:true});
+      if(r.noDevice)show(false,"Nu ai niciun dispozitiv cu notificările active. Activează-le întâi pe telefon.");
+      else if(r.sent)show(true,`Testul a plecat pe ${r.sent} ${r.sent===1?"dispozitivul tău":"dispozitivele tale"}. Frații nu au primit nimic.`);
+      else show(false,"Testul nu a putut fi livrat. Deschide aplicația pe telefon, ca să se reînnoiască înregistrarea, apoi încearcă din nou.");
+    }catch(e){show(false,"Testul a eșuat. Încearcă din nou.")}
+    finally{testB.disabled=false;testB.textContent="Trimite un test doar mie"}
+  };
+  const self=host.querySelector("#push-self");
+  if(self)self.onclick=async()=>{
+    const m=host.querySelector("#push-self-msg");self.disabled=true;m.textContent="Se activează…";
+    try{const r=await pushEnable();if(r==="on")vPushAdmin(host,role);else{m.textContent=r==="denied"?"Permisiunea e refuzată. Pornește notificările din setările dispozitivului.":"Permisiunea nu a fost acordată.";self.disabled=false}}
+    catch(e){m.textContent="Nu am putut activa notificările pe acest dispozitiv.";self.disabled=false;console.warn("push",e)}
+  };
+}
+
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.22-37";
+const APP_VERSION="2026.10.24-38";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{

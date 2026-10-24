@@ -51,6 +51,10 @@ function doPost(e) {
     if (req.action === "admin_read") return json_(adminRead_(me));
     if (req.action === "attendance_set") return json_(attendanceSet_(me, who.email, req));
     if (req.action === "payment_add") return json_(paymentAdd_(me, who.email, req));
+    if (req.action === "push_register") return json_(pushRegister_(me, who.email, req));
+    if (req.action === "push_unregister") return json_(pushUnregister_(who.email, req));
+    if (req.action === "push_status") return json_(pushStatus_(me));
+    if (req.action === "push_send") return json_(pushSend_(me, who.email, req));
     return json_({ error: "bad_request" });
   } catch (err) {
     return json_({ error: "server", message: String(err && err.message || err) });
@@ -76,7 +80,7 @@ function verify_(token) {
 }
 
 function rosterRows_() {
-  return SpreadsheetApp.openById(CFG.SHEETS.roster).getSheetByName("Frați activi").getRange("A4:M200").getDisplayValues()
+  return SpreadsheetApp.openById(CFG.SHEETS.roster).getSheetByName("Frați activi").getRange("A4:P200").getDisplayValues()
     .map((r, i) => { r.row = i + 4; return r; })
     .filter(r => /^\d+$/.test(String(r[0]).trim()) && r[1]);
 }
@@ -88,7 +92,7 @@ function member_(email) {
   const r = rows.find(x => String(x[10]).trim().toLowerCase() === email) || rows.find(x => String(x[9]).trim().toLowerCase() === email);
   if (!r || norm_(r[12]) !== "activ") return null;
   const k=key_(r[1],r[2]);
-  return { key: k, row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4], functie: r[5], demnitar: r[6], uniqueIdentity: rows.filter(x=>norm_(x[12])==="activ"&&key_(x[1],x[2])===k).length===1 };
+  return { key: k, row: r.row, name: r[2] + " " + r[1], full: r[1] + " " + r[2], grad: r[4], functie: r[5], demnitar: r[6], pushOff: norm_(r[15]) === "nu", uniqueIdentity: rows.filter(x=>norm_(x[12])==="activ"&&key_(x[1],x[2])===k).length===1 };
 }
 
 /* Date de vizita private, controlate de titular. Nu contin poza si nu sunt publicate. */
@@ -636,7 +640,7 @@ function bootstrap_(me, email) {
     const lodges = bootstrapTimed_("lodges", () => sharedCached_("lodges", 1800, () => values_(CFG.SHEETS.lodges, "A2:J100")), metrics);
     const news = bootstrapTimed_("news", () => sharedCached_("news", 300, () => values_(CFG.SHEETS.news, "A2:E300")), metrics);
     const out = {
-      me: { email: email, key: me.key, fisa: fisa, adminRole: adminRole_(me), functieLoja: me.functie || "", demnitateMLNR: me.demnitar || "" },
+      me: { email: email, key: me.key, fisa: fisa, adminRole: adminRole_(me), functieLoja: me.functie || "", demnitateMLNR: me.demnitar || "", pushOff: !!me.pushOff },
       roster: roster,
       presence: presence,
       visits: visits,
@@ -834,6 +838,195 @@ function file_(id, level) {
   const mime = f.getMimeType();
   const blob = /^application\/vnd\.google-apps\./.test(mime) ? f.getAs("application/pdf") : f.getBlob();
   return { name: f.getName(), mime: blob.getContentType(), b64: Utilities.base64Encode(blob.getBytes()) };
+}
+
+/* ---------- notificări push (Firebase Cloud Messaging) ----------
+   Telefoanele fraților se înregistrează din aplicație; tokenurile stau doar în
+   proprietățile scriptului, niciodată în registre. Coloana „Notificări” (P) din
+   „Frați activi”: „Nu” = fratelui nu i se mai trimite nimic. Gol sau „Da” = primește.
+   Cheia contului de serviciu Firebase e în proprietatea FCM_KEY (nu în cod). */
+const PUSH_ = { PROJECT: "spatiul-fratilor-l216", TOKENS: "push_tokens", LOG: "push_log", MAX_TEXT: 160, MAX_DEVICES: 4 };
+
+function pushProps_() { return PropertiesService.getScriptProperties(); }
+function pushTokens_() { try { return JSON.parse(pushProps_().getProperty(PUSH_.TOKENS) || "{}"); } catch (_) { return {}; } }
+function pushLog_() { try { return JSON.parse(pushProps_().getProperty(PUSH_.LOG) || "[]"); } catch (_) { return []; } }
+function pushLocked_(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { return fn(); } finally { lock.releaseLock(); }
+}
+function pushCanSend_(me) { const r = adminRole_(me); return r === "secretar" || r === "mv" ? r : ""; }
+
+function pushRegister_(me, email, req) {
+  const tok = String(req.fcmToken || "").trim();
+  if (!/^[\w:.\-]{20,500}$/.test(tok)) return { error: "bad_request" };
+  const prev = String(req.previous || "").trim();
+  pushLocked_(() => {
+    const map = pushTokens_();
+    if (prev && prev !== tok && map[prev] && map[prev].e === email) delete map[prev];
+    map[tok] = { e: email, p: String(req.platform || "").slice(0, 16), t: Date.now() };
+    Object.keys(map).filter(k => map[k].e === email).sort((a, b) => map[b].t - map[a].t)
+      .slice(PUSH_.MAX_DEVICES).forEach(k => delete map[k]);
+    pushProps_().setProperty(PUSH_.TOKENS, JSON.stringify(map));
+  });
+  return { ok: true, off: !!me.pushOff };
+}
+
+function pushUnregister_(email, req) {
+  const tok = String(req.fcmToken || "").trim();
+  pushLocked_(() => {
+    const map = pushTokens_();
+    if (map[tok] && map[tok].e === email) { delete map[tok]; pushProps_().setProperty(PUSH_.TOKENS, JSON.stringify(map)); }
+  });
+  return { ok: true };
+}
+
+/* Frații activi, tokenurile celor care primesc și cine are cel puțin un dispozitiv */
+function pushAudience_() {
+  const rows = rosterRows_().filter(r => norm_(r[12]) === "activ");
+  const byEmail = {};
+  rows.forEach(r => [r[9], r[10]].forEach(e => { e = String(e || "").trim().toLowerCase(); if (e) byEmail[e] = r; }));
+  const map = pushTokens_(), tokens = [], devices = new Set();
+  Object.keys(map).forEach(tok => {
+    const r = byEmail[map[tok].e];
+    if (!r) return;
+    const k = key_(r[1], r[2]);
+    devices.add(k);
+    if (norm_(r[15]) !== "nu") tokens.push(tok);
+  });
+  return { rows: rows, tokens: tokens, devices: devices };
+}
+
+function pushStatus_(me) {
+  if (!pushCanSend_(me)) return { error: "forbidden" };
+  const A = pushAudience_();
+  const people = A.rows.map(r => {
+    const k = key_(r[1], r[2]);
+    return { name: r[1] + " " + r[2], on: A.devices.has(k), off: norm_(r[15]) === "nu" };
+  }).sort((a, b) => a.name.localeCompare(b.name, "ro"));
+  return { people: people, log: pushLog_().slice(0, 10) };
+}
+
+function pushSend_(me, email, req) {
+  const role = pushCanSend_(me);
+  if (!role) return { error: "forbidden" };
+  const text = String(req.text || "").replace(/\s+/g, " ").trim();
+  if (!text || text.length > PUSH_.MAX_TEXT) return { error: "bad_request" };
+  const title = role === "mv" ? "Anunț de la Maestrul Venerabil" : "Anunț de la Secretar";
+  if (req.test) {
+    const map = pushTokens_();
+    const mine = Object.keys(map).filter(k => map[k].e === email);
+    if (!mine.length) return { ok: true, test: true, sent: 0, failed: 0, noDevice: true };
+    const r = pushDeliver_(mine, { title: "Test · " + title, body: text, tag: "l216-test" });
+    return { ok: true, test: true, sent: r.sent, failed: r.failed };
+  }
+  return pushLocked_(() => {
+    const last = pushLog_()[0];
+    if (last && last.text === text && Date.now() - last.at < 5 * 60 * 1000) return { ok: false, duplicate: true };
+    const A = pushAudience_();
+    const r = pushDeliver_(A.tokens, { title: title, body: text, tag: "l216-anunt-" + Date.now() });
+    pushAddLog_({ at: Date.now(), by: role === "mv" ? "MV" : "Secretar", text: text, sent: r.sent, failed: r.failed });
+    return { ok: true, sent: r.sent, failed: r.failed };
+  });
+}
+
+function pushAddLog_(entry) {
+  const log = pushLog_();
+  log.unshift(entry);
+  pushProps_().setProperty(PUSH_.LOG, JSON.stringify(log.slice(0, 30)));
+}
+
+/* Token de acces OAuth pentru FCM, semnat cu cheia contului de serviciu; păstrat ~50 min */
+function pushAccessToken_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get("fcm_access");
+  if (hit) return hit;
+  const raw = pushProps_().getProperty("FCM_KEY");
+  if (!raw) throw new Error("Lipsește proprietatea FCM_KEY");
+  const k = JSON.parse(raw);
+  const now = Math.floor(Date.now() / 1000);
+  const b64 = x => Utilities.base64EncodeWebSafe(x).replace(/=+$/, "");
+  const tokenUri = k.token_uri || "https://oauth2.googleapis.com/token";
+  const unsigned = b64(JSON.stringify({ alg: "RS256", typ: "JWT" })) + "." + b64(JSON.stringify({
+    iss: k.client_email, scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: tokenUri, iat: now, exp: now + 3600 }));
+  const jwt = unsigned + "." + b64(Utilities.computeRsaSha256Signature(unsigned, k.private_key));
+  const r = UrlFetchApp.fetch(tokenUri, { method: "post", muteHttpExceptions: true,
+    payload: { grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt } });
+  if (r.getResponseCode() !== 200) throw new Error("Autentificarea FCM a eșuat (" + r.getResponseCode() + ")");
+  const t = JSON.parse(r.getContentText());
+  cache.put("fcm_access", t.access_token, Math.max(60, Math.min(3000, Number(t.expires_in || 3600) - 300)));
+  return t.access_token;
+}
+
+/* Trimite mesaje „data” (le afișează sw.js), câte 50 în paralel; șterge tokenurile moarte */
+function pushDeliver_(tokens, msg) {
+  if (!tokens.length) return { sent: 0, failed: 0 };
+  const access = pushAccessToken_();
+  const url = "https://fcm.googleapis.com/v1/projects/" + PUSH_.PROJECT + "/messages:send";
+  const data = { title: String(msg.title), body: String(msg.body), url: String(msg.url || "./"), tag: String(msg.tag || "l216") };
+  const ttl = String(msg.ttl || 86400);
+  let sent = 0, failed = 0, firstError = "";
+  const dead = [];
+  for (let i = 0; i < tokens.length; i += 50) {
+    const part = tokens.slice(i, i + 50);
+    const res = UrlFetchApp.fetchAll(part.map(t => ({
+      url: url, method: "post", contentType: "application/json", muteHttpExceptions: true,
+      headers: { Authorization: "Bearer " + access },
+      payload: JSON.stringify({ message: { token: t, data: data, webpush: { headers: { Urgency: "high", TTL: ttl } } } })
+    })));
+    res.forEach((r, j) => {
+      const c = r.getResponseCode();
+      if (c === 200) { sent++; return; }
+      failed++;
+      const body = r.getContentText();
+      if (!firstError) firstError = c + " " + body.slice(0, 300);
+      if (c === 404 || /UNREGISTERED|SENDER_ID_MISMATCH/.test(body)) dead.push(part[j]);
+    });
+  }
+  if (dead.length) pushLocked_(() => {
+    const map = pushTokens_();
+    dead.forEach(t => delete map[t]);
+    pushProps_().setProperty(PUSH_.TOKENS, JSON.stringify(map));
+  });
+  // jurnal fără tokenuri sau adrese
+  console.log(JSON.stringify({ kind: "push_send", sent: sent, failed: failed, removed: dead.length, error: firstError }));
+  return { sent: sent, failed: failed };
+}
+
+/** Rulat zilnic de declanșator, între 12:00 și 13:00: reamintire în ziua ținutei lojii. */
+function reamintireTinuta() {
+  const tz = "Europe/Bucharest";
+  const day = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
+  const flag = "push_reminder_" + day;
+  if (pushProps_().getProperty(flag)) return;
+  const cal = CalendarApp.getCalendarById(CFG.CALENDAR_ID);
+  if (!cal) return;
+  const from = new Date(); from.setHours(0, 0, 0, 0);
+  const to = new Date(from.getTime() + 864e5);
+  const ev = cal.getEvents(from, to).find(e => {
+    const t = norm_(e.getTitle());
+    const startDay = Utilities.formatDate(e.isAllDayEvent() ? e.getAllDayStartDate() : e.getStartTime(), tz, "yyyy-MM-dd");
+    return startDay === day && /\btinut/.test(t) && /transilvania\s*(nr\.?\s*)?216/.test(t);
+  });
+  if (!ev) return;
+  let hour = "19:00";
+  if (!ev.isAllDayEvent()) hour = Utilities.formatDate(ev.getStartTime(), tz, "HH:mm");
+  else { const m = /ora\s*(\d{1,2})[:.](\d{2})/i.exec(ev.getDescription() || ""); if (m) hour = ("0" + m[1]).slice(-2) + ":" + m[2]; }
+  const place = String(ev.getLocation() || "").split(/\s+[—–-]\s+|,/)[0].trim() || "Templu";
+  const body = "De la ora " + hour + ", la " + place + ".";
+  const A = pushAudience_();
+  const r = pushDeliver_(A.tokens, { title: "Astăzi avem ținută", body: body, tag: "l216-tinuta-" + day, ttl: 12 * 3600 });
+  pushProps_().setProperty(flag, "1");
+  pushAddLog_({ at: Date.now(), by: "Reamintire automată", text: "Astăzi avem ținută. " + body, sent: r.sent, failed: r.failed });
+}
+
+/** Rulați o dată din editor (▶ instaleazaNotificari): programează reamintirea și verifică cheia FCM. */
+function instaleazaNotificari() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === "reamintireTinuta").forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger("reamintireTinuta").timeBased().everyDays(1).atHour(12).inTimezone("Europe/Bucharest").create();
+  pushAccessToken_();
+  Logger.log("Gata: reamintirea zilnică e programată între 12:00 și 13:00, iar cheia FCM funcționează.");
 }
 
 function json_(o) {
