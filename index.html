@@ -1164,15 +1164,15 @@ function vHome(v){
     h+=`<div class="sec-title">Excursiile lojii</div><div class="excs">${M.excursions.map(x=>{const ps=exPlans(x);const n=ps.length,pp=ps.reduce((a,p)=>a+exPers(p),0);
       return `<div class="card exc" role="button" tabindex="0" data-exopen="${esc(x.id)}"><div class="label">${esc(exRange(x))}</div><h3>${esc(x.titlu)}</h3><div class="s">${esc(x.loc)}</div><div class="exf"><span>${n?`${n===1?"un frate":n+(n>=20?" de":"")+" frați"}${pp>n?` · ${pp} persoane`:""}`:"Încă nu s-a înscris nimeni"}</span>${svg("chev",18)}</div></div>`}).join("")}</div>`;
   }
+  // aniversări
+  if(M.bdays.length){
+    h+=`<div class="sec-title">Aniversări în următoarele două săptămâni</div><div class="card"><ul class="list">${M.bdays.map(x=>`<li class="item"><div class="datebox"><b>${x.n.getDate()}</b><span>${RO_MONTHS[x.n.getMonth()].slice(0,3)}</span></div><div><div class="t">Fr∴ ${esc(x.b.apel+" "+x.b.nume)}</div><div class="s">${sameDay(x.n,today())?"Astăzi":esc(cap(x.n.toLocaleDateString("ro-RO",{weekday:"long"})))}</div></div><span></span></li>`).join("")}</ul></div>`;
+  }
   // agenda
   h+=`<div class="sec-title">În agenda lojii</div>`;
   if(S.err.events)h+=sectionErr("events","Calendarul lojii");
   else if(!M.events.length)h+=`<div class="state">Niciun eveniment în următoarele 60 de zile.</div>`;
   else h+=`<div class="card"><ul class="list">${M.events.slice(0,8).map(e=>{const n=e.id?M.plans.filter(p=>p.evt===e.id).length:0;const go=!!e.id;return `<li class="item${go?" evgo":""}"${go?` role="button" tabindex="0" data-evopen="${esc(e.id)}"`:""}><div class="datebox"><b>${e.start.getDate()}</b><span>${RO_MONTHS[e.start.getMonth()].slice(0,3)}</span></div><div><div class="t">${esc(e.title)}</div><div class="s">${e.allDay?"":esc(e.start.toLocaleTimeString("ro-RO",{hour:"2-digit",minute:"2-digit"}))+" · "}${esc(e.location)}</div>${n?`<div class="evn"><span class="tag">${n===1?"merge un frate":n+(n>=20?" de":"")+" frați merg"}</span></div>`:""}</div><span class="chev">${go?svg("chev",18):""}</span></li>`}).join("")}</ul></div>`;
-  // aniversări
-  if(M.bdays.length){
-    h+=`<div class="sec-title">Aniversări în următoarele două săptămâni</div><div class="card"><ul class="list">${M.bdays.map(x=>`<li class="item"><div class="datebox"><b>${x.n.getDate()}</b><span>${RO_MONTHS[x.n.getMonth()].slice(0,3)}</span></div><div><div class="t">Fr∴ ${esc(x.b.apel+" "+x.b.nume)}</div><div class="s">${sameDay(x.n,today())?"Astăzi":esc(cap(x.n.toLocaleDateString("ro-RO",{weekday:"long"})))}</div></div><span></span></li>`).join("")}</ul></div>`;
-  }
   h+=`<div class="sec-title">Loja în lume</div><div class="card"><ul class="list">${CONFIG.LINKS.map(([t,sub,url,ic])=>`<li class="item" style="grid-template-columns:1fr"><a class="rowbtn" href="${esc(url)}" target="_blank" rel="noopener"><span class="doci">${svg(ic,18)}</span><span><span class="t" style="display:block">${esc(t)}</span><span class="s">${esc(sub)}</span></span><span class="chev">${svg("ext",16)}</span></a></li>`).join("")}</ul></div>`;
   v.innerHTML=h;
   stoneMount(v.querySelector("#stone-loja"),"l216.piatra.loja",S.viewShown);
@@ -2264,7 +2264,7 @@ async function vPushAdmin(host,role){
 }
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.24-39";
+const APP_VERSION="2026.10.24-40";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
