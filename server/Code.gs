@@ -48,6 +48,7 @@ function doPost(e) {
     if (req.action === "file") return json_(file_(String(req.id || ""), level_(me.grad)));
     if (req.action === "plan_add") return json_(planAdd_(me, who.email, req));
     if (req.action === "plan_cancel") return json_(planCancel_(who.email, String(req.id || "")));
+    if (req.action === "gs_request") return json_(gsRequest_(me, who.email, req));
     if (req.action === "admin_read") return json_(adminRead_(me));
     if (req.action === "attendance_set") return json_(attendanceSet_(me, who.email, req));
     if (req.action === "payment_add") return json_(paymentAdd_(me, who.email, req));
@@ -664,6 +665,8 @@ function bootstrap_(me, email) {
     catch (e) { out.errors.events = String(e.message || e); }
     try { out.widow = bootstrapTimed_("widow_fund", () => widowFund_(me), metrics); }
     catch (_) { out.errors.widow = "unavailable"; }
+    try { out.gsRequests = bootstrapTimed_("good_standing", () => gsRequests_(email), metrics); }
+    catch (_) { out.gsRequests = null; }
     try { out.finance = bootstrapTimed_("finance", () => finance_(me), metrics); }
     catch (_) { out.errors.finance = "unavailable"; }
     const cat = bootstrapTimed_("drive_catalog", () => catalogCached_(level_(me.grad)), metrics);
@@ -823,6 +826,79 @@ function planCancel_(email, id) {
     ]);
   } finally { lock.releaseLock(); }
   return { ok: true, plans: plans_(email) };
+}
+
+/* ---------- Good Standing ----------
+   Un frate e în Good Standing doar cu metalele anului curent achitate integral către Lojă
+   (statusul „Achitat integral” din „Situație frați”, după vot și validarea Trezoreriei).
+   Plata făcută de Lojă la MLNR în numele fratelui NU îl pune în Good Standing.
+   Solicitările de certificat se primesc doar în Good Standing și ajung la Secretariat
+   în foaia „Solicitări Good Standing” din registrul „Frați activi” + email. */
+const GS_SHEET_ = "Solicitări Good Standing";
+const GS_HEAD_ = ["Data solicitării", "Frate", "Cont Google", "Scop", "Loja", "Orient / Țara", "Data vizitei", "Observații", "Stare", "Notă Secretariat", "ID"];
+const GS_SCOPURI_ = { vizita: "Vizită la o lojă din străinătate", afiliere: "Afiliere / dublă afiliere", alt: "Alt motiv" };
+function gsSheet_(create) {
+  const ss = SpreadsheetApp.openById(CFG.SHEETS.roster);
+  let sh = ss.getSheetByName(GS_SHEET_);
+  if (!sh && create) {
+    sh = ss.insertSheet(GS_SHEET_);
+    sh.getRange(1, 1, 1, GS_HEAD_.length).setValues([GS_HEAD_]).setFontWeight("bold");
+    sh.setFrozenRows(1);
+    sh.getRange("I2:I1000").setDataValidation(SpreadsheetApp.newDataValidation()
+      .requireValueInList(["Primită", "Trimisă la MLNR", "Emisă", "Respinsă"], true).setAllowInvalid(false).build());
+  }
+  return sh;
+}
+function gsRequests_(email) {
+  const sh = gsSheet_(false);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, GS_HEAD_.length).getDisplayValues()
+    .filter(r => String(r[2]).trim().toLowerCase() === email && r[10])
+    .map(r => ({ id: r[10], at: r[0], scop: r[3], loja: r[4], orient: r[5], data: r[6], stare: r[8] || "Primită", nota: r[9] }))
+    .reverse().slice(0, 10);
+}
+function gsRequest_(me, email, req) {
+  const f = finance_(me);
+  if (!f.mine || f.mine.dues.status !== "Achitat integral")
+    return { error: "forbidden", message: "Certificatul de Good Standing se poate solicita doar cu metalele anului curent achitate integral." };
+  const scop = GS_SCOPURI_[String(req.scop || "")];
+  if (!scop) return { error: "bad_request", message: "Alege scopul solicitării." };
+  const loja = clean_(req.loja, 150), orient = clean_(req.orient, 100), note = clean_(req.note, 300);
+  if (scop !== GS_SCOPURI_.alt && (!loja || !orient)) return { error: "bad_request", message: "Completează loja și orientul / țara." };
+  if (scop === GS_SCOPURI_.alt && !note) return { error: "bad_request", message: "Descrie pe scurt pentru ce ai nevoie de certificat." };
+  let dTxt = "";
+  if (req.date) {
+    const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    const d = parseDate_(req.date);
+    if (!d || d < t0 || d - t0 > 400 * 864e5) return { error: "bad_request", message: "Data vizitei nu este validă." };
+    dTxt = dmy_(d);
+  }
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { error: "server", message: "busy" };
+  try {
+    const open = gsRequests_(email).filter(x => ["primita", "trimisa la mlnr"].indexOf(norm_(x.stare)) >= 0);
+    if (open.length >= 3) return { error: "bad_request", message: "Ai deja 3 solicitări în lucru. Secretariatul te contactează." };
+    const sh = gsSheet_(true);
+    const row = sh.getLastRow() + 1;
+    const now = Utilities.formatDate(new Date(), tz_, "dd.MM.yyyy HH:mm");
+    sh.getRange(row, 1, 1, GS_HEAD_.length).setNumberFormat("@")
+      .setValues([[now, me.full, email, scop, loja, orient, dTxt, note, "Primită", "", Utilities.getUuid().slice(0, 8)]]);
+    notify_("Solicitare Good Standing: Fr∴ " + me.full + (orient ? " — " + orient : ""), [
+      "Fratele " + me.full + " solicită certificat de Good Standing.",
+      "",
+      "Scop: " + scop,
+      loja ? "Loja: " + loja : "",
+      orient ? "Orient / Țara: " + orient : "",
+      dTxt ? "Data vizitei: " + dTxt : "",
+      note ? "Observații: " + note : "",
+      "",
+      "Metale " + f.year + ": achitate integral (la data solicitării).",
+      "",
+      "Starea se actualizează în foaia „" + GS_SHEET_ + "” (fratele o vede în aplicație):",
+      "https://docs.google.com/spreadsheets/d/" + CFG.SHEETS.roster + "/edit"
+    ]);
+  } finally { lock.releaseLock(); }
+  return { ok: true, gsRequests: gsRequests_(email) };
 }
 
 /* ---------- fișiere ---------- */

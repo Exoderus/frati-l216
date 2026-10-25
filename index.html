@@ -358,7 +358,7 @@ button.navbtn{cursor:pointer;font-family:inherit}
 .fbody{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:8px 0 calc(28px + env(safe-area-inset-bottom,0px))}
 .fbody form{max-width:560px;margin:0 auto;padding:0 16px}
 .fbody label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:18px 0 6px;letter-spacing:.02em}
-.fbody select,.fbody input[type=date],.fbody textarea{width:100%;box-sizing:border-box;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:0 12px;font:inherit;font-size:16px}
+.fbody select,.fbody input[type=date],.fbody input[type=text],.fbody textarea{width:100%;box-sizing:border-box;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:0 12px;font:inherit;font-size:16px}
 .fbody textarea{padding:10px 12px;min-height:84px;resize:vertical}
 .fbody .hint{font-size:13px;color:var(--muted);margin-top:6px}
 .fbody .check{display:flex;gap:10px;align-items:flex-start;margin-top:18px;font-size:15px;cursor:pointer}
@@ -439,6 +439,15 @@ button.navbtn{cursor:pointer;font-family:inherit}
 .gtl{display:flex;flex-direction:column;gap:10px;margin-top:12px;padding-left:4px;border-left:2px solid var(--gold-soft)}
 .gstep{display:flex;gap:10px;align-items:flex-start;margin-left:-9px}
 .gdot{width:12px;height:12px;border-radius:50%;background:var(--gold);flex:none;margin-top:5px;box-shadow:0 0 0 3px var(--surface)}
+.gs{display:flex;gap:12px;align-items:flex-start;margin-top:12px;padding:12px 14px;border-radius:14px;background:var(--line)}
+.gsi{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--muted);color:var(--surface);font-size:15px;line-height:1}
+.gst{font-weight:700;margin-bottom:2px}
+.gs.ok{background:var(--p-soft)}.gs.ok .gsi{background:var(--p)}.gs.ok .gst{color:var(--p)}
+.gs.part{background:var(--m-soft)}.gs.part .gsi{background:var(--m)}.gs.part .gst{color:var(--m)}
+.gs.no{background:var(--n-soft)}.gs.no .gsi{background:var(--n)}.gs.no .gst{color:var(--n)}
+.gsbar{height:6px;border-radius:3px;background:rgb(0 0 0 / .1);margin-top:8px;overflow:hidden}.gsbar i{display:block;height:100%;background:var(--m);border-radius:3px}
+.gsbtn{width:100%;justify-content:center;margin-top:10px;height:46px}
+.gsl{margin-top:4px}
 .flist{margin-top:12px;display:flex;flex-direction:column;gap:4px;font-size:14px}
 .frow{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:6px}
 .frow span:last-child{text-align:right;overflow-wrap:anywhere}
@@ -571,6 +580,7 @@ function serverAdapter(token){
     pushSend(data){return call("push_send",data)},
     planAdd(data){return call("plan_add",data)},
     planCancel(id){return call("plan_cancel",{id})},
+    gsRequest(data){return call("gs_request",data)},
     async file(id){const j=await retry(()=>call("file",{id}));const bin=atob(j.b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:j.mime||"application/octet-stream"})}
   };
 }
@@ -657,6 +667,7 @@ const IC={
   audio:'<path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   img:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/>',
   pen:'<path d="M4 20l4-1 11-11-3-3L5 16z"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   chev:'<path d="M9 6l6 6-6 6"/>',
   folder:'<path d="M3 6h6l2 2h10v11H3z"/>',
   web:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/>',
@@ -722,6 +733,7 @@ async function loadAll(forceFresh=false){
       S.data.announce=Array.isArray(d.announce)?d.announce:[];
       S.data.widow=d.widow||null;
       S.data.finance=d.finance||null;
+      S.data.gsRequests=Array.isArray(d.gsRequests)?d.gsRequests:null;
       if(d.errors&&d.errors.finance)S.err.finance={status:500};
       if(d.errors&&d.errors.widow)S.err.widow={status:500};
       if(d.errors&&d.errors.events)S.err.events={status:500};
@@ -744,7 +756,7 @@ async function loadAll(forceFresh=false){
         catch(err){lastErr=err;d=null;if(err&&(err.status===401||err.status===403))break}
       }
       if(!d)throw lastErr||new ApiError(500,"bad_response");
-      apply(d);S.lastGoodLoad=Date.now();pushAfterLoad(d);setTimeout(annCheck,300);refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
+      apply(d);S.lastGoodLoad=Date.now();pushAfterLoad(d);setTimeout(annCheck,300);refreshOpenFinanceDetails();try{const cachedData={...d,me:d.me?{...d.me,adminRole:""}:null};delete cachedData.widow;delete cachedData.finance;delete cachedData.gsRequests;localStorage.setItem(CK,JSON.stringify(cachedData))}catch(_){}
     }catch(e){
       if(e.status===401){store.del(AUTH_KEY);startLogin(true);return false}
       if(e.status===403){try{localStorage.removeItem(CK)}catch(_){}S.data={};S.err.roster=e}
@@ -1347,6 +1359,7 @@ function vMe(v){
   h+=`<section class="card"><div class="label">Fișa mea</div>
     <div style="margin-top:6px;font-family:var(--f-display);font-size:22px;font-weight:700">${esc(me.prenume+" "+me.nume)}</div>
     <div class="small muted">${esc([grad,fn].filter(Boolean).join(" · "))}${F&&F.id?` · ${esc(F.id)}`:""}</div>
+    ${gsBlock()}
     ${gtl.length?`<div class="gtl">${gtl.map(([l,v])=>`<div class="gstep"><span class="gdot"></span><div><div class="small muted">${esc(l)}</div><div class="num" style="font-weight:600">${esc(v)}</div></div></div>`).join("")}</div>`:""}
     ${F?`<div class="flist">${frow("Membru L216 din",F.afiliere)}${frow("Loja de proveniență",F.provenienta)}${frow("Naș",F.nas)}${frow("Activ în R∴L∴ Transilvania nr. 216",durata(F.afiliere||F.initiere))}</div>`:""}
     ${F&&!F.initiere?`<div class="small muted" style="margin-top:8px">Unele date lipsesc din registru. Le poți transmite Secretariatului.</div>`:""}
@@ -1355,6 +1368,81 @@ function vMe(v){
   v.innerHTML=h;
   stoneMount(v.querySelector("#stone-me"),"l216.piatra.me."+me.key,S.viewShown);
   if(S.me.adminRole)bindAdminSwitch(v);
+  const gsb=v.querySelector("#gsreq");if(gsb)gsb.onclick=openGsForm;
+}
+
+/* ============ GOOD STANDING ============
+   În Good Standing = metalele anului curent achitate integral către Lojă (statusul din registrul Trezoreriei).
+   Plata făcută de Lojă la MLNR în numele fratelui nu contează. Certificatul se solicită doar în Good Standing. */
+const GS_STARI={"Primită":"X","Trimisă la MLNR":"M","Emisă":"P","Respinsă":"N"};
+function gsState(){
+  const f=S.data.finance,own=f&&f.mine;
+  if(!f)return S.err.finance?{k:"wait",t:"Good Standing",s:"Situația metalelor este temporar indisponibilă."}:{k:"wait",t:"Good Standing",s:"Se verifică situația metalelor…"};
+  if(!own)return {k:"wait",t:"Good Standing",s:"Situația ta nu a putut fi asociată în registru. Solicită verificarea la Trezorerie."};
+  const d=own.dues,st=d.status,an=f.year;
+  if(st==="Achitat integral")return {k:"ok",t:"În Good Standing",s:`Metalele ${esc(an)} achitate integral.`};
+  if(st==="Achitat parțial"){
+    const tg=moneyVal(d.target),pd=moneyVal(d.paid),rest=Math.max(0,tg-pd);
+    return {k:"part",t:"Good Standing neîndeplinit încă",s:`Metale ${esc(an)}: ${widowLei(d.paid)} din ${widowLei(d.target)}${rest?` · mai ai ${esc(fmtLei(rest))} până la Good Standing`:""}.`,pct:tg?Math.min(100,Math.round(pd/tg*100)):0};
+  }
+  if(st==="Neachitat")return {k:"no",t:"Nu ești în Good Standing",s:`Metalele ${esc(an)} nu sunt încă achitate.`};
+  return {k:"wait",t:"Good Standing · în curs de confirmare",s:"Situația metalelor nu este încă validată de Trezorerie."};
+}
+function moneyVal(t){const x=String(t==null?"":t).replace(/\s|lei/gi,"").replace(/\./g,"").replace(",",".");const n=Number(x);return Number.isFinite(n)?Math.abs(n):0}
+function fmtLei(n){return Number(n||0).toLocaleString("ro-RO",{maximumFractionDigits:2})+" lei"}
+function gsBlock(){
+  if(!S.api||S.api.mode!=="google")return "";
+  const g=gsState();
+  const ic=g.k==="ok"?svg("check",18,2.4):g.k==="part"?"<b>½</b>":g.k==="no"?"<b>!</b>":"<b>…</b>";
+  let h=`<div class="gs ${g.k}" role="status"><span class="gsi" aria-hidden="true">${ic}</span><div style="min-width:0;flex:1"><div class="gst">${esc(g.t)}</div><div class="small">${g.s}</div>${g.pct!=null?`<div class="gsbar"><i style="width:${g.pct}%"></i></div>`:""}${g.k!=="ok"&&g.k!=="wait"?`<div class="small muted" style="margin-top:6px">Certificatul de Good Standing se poate solicita după achitarea integrală a metalelor.</div>`:""}</div></div>`;
+  if(g.k==="ok"&&S.api.gsRequest)h+=`<button class="gbtn gsbtn" type="button" id="gsreq">${svg("doc",18)}Solicită certificat de Good Standing</button>`;
+  const R=S.data.gsRequests||[];
+  if(R.length)h+=`<div class="label" style="margin-top:14px">Solicitările mele</div><ul class="list gsl">${R.map(r=>`<li class="item" style="grid-template-columns:minmax(0,1fr) auto"><div><div class="t">${esc(r.orient||r.scop)}${r.data?` · ${esc(r.data)}`:""}</div><div class="s">Trimisă ${esc(String(r.at).slice(0,10))}${r.nota?` · ${esc(r.nota)}`:""}</div></div><span class="pill ${GS_STARI[r.stare]||"X"}">${esc(r.stare)}</span></li>`).join("")}</ul>`;
+  return h;
+}
+function openGsForm(){
+  if(document.querySelector(".viewer"))return;
+  const el=document.createElement("div");el.className="viewer";el.setAttribute("role","dialog");el.setAttribute("aria-modal","true");el.setAttribute("aria-label","Solicită certificat de Good Standing");
+  const min=isoDate(today());
+  el.innerHTML=`<header><div class="wrap"><button class="vbtn" type="button" id="gclose">Închide</button><h2>Certificat de Good Standing</h2></div></header>
+  <div class="fbody"><form id="gform" novalidate>
+    <div class="gs ok" style="margin-top:4px"><span class="gsi" aria-hidden="true">${svg("check",18,2.4)}</span><div><div class="gst">În Good Standing</div><div class="small">Metalele ${esc(S.data.finance&&S.data.finance.year||"")} achitate integral.</div></div></div>
+    <label class="f" id="gsl">Pentru ce ai nevoie de certificat</label>
+    <div class="radios" role="radiogroup" aria-labelledby="gsl"><label><input type="radio" name="gs" value="vizita" checked>Vizită în străinătate</label><label><input type="radio" name="gs" value="afiliere">Afiliere</label><label><input type="radio" name="gs" value="alt">Alt motiv</label></div>
+    <div id="glw"><label class="f" for="gl">Loja</label>
+    <input type="text" id="gl" maxlength="150" placeholder="Ex.: Lodge of Antiquity No. 2" autocomplete="off">
+    <label class="f" for="go">Orientul / țara</label>
+    <input type="text" id="go" maxlength="100" placeholder="Ex.: Londra, Anglia" autocomplete="off"></div>
+    <label class="f" for="gd">Data vizitei (opțional)</label>
+    <input type="date" id="gd" min="${min}">
+    <label class="f" for="gn" id="gnl">Observații (opțional)</label>
+    <textarea id="gn" maxlength="300" placeholder="Ex.: ținută de instalare; certificat în limba engleză"></textarea>
+    <p class="hint" style="margin-top:14px">Solicitarea ajunge la Secretar. El o transmite Marii Loji și te anunță când certificatul e gata; starea o vezi și aici, în Fișa mea.</p>
+    <div class="ferr" id="gerr" role="alert"></div>
+    <button class="primary" type="submit" id="gsend">Trimite solicitarea</button>
+  </form></div>`;
+  document.body.append(el);document.body.style.overflow="hidden";
+  const close=()=>{el.remove();document.body.style.overflow="";document.removeEventListener("keydown",onKey)};
+  const onKey=e=>{if(e.key==="Escape")close()};document.addEventListener("keydown",onKey);
+  el.querySelector("#gclose").onclick=close;
+  const scop=()=>(el.querySelector('input[name="gs"]:checked')||{}).value||"vizita";
+  const sync=()=>{const alt=scop()==="alt";el.querySelector("#gnl").textContent=alt?"Pentru ce ai nevoie de certificat":"Observații (opțional)"};
+  el.querySelectorAll('input[name="gs"]').forEach(r=>r.onchange=sync);
+  el.querySelector("#gform").onsubmit=async sub=>{
+    sub.preventDefault();
+    const err=el.querySelector("#gerr"),btn=el.querySelector("#gsend");err.textContent="";
+    const sc=scop(),loja=el.querySelector("#gl").value.trim(),orient=el.querySelector("#go").value.trim(),d=el.querySelector("#gd").value,note=el.querySelector("#gn").value.trim();
+    if(sc!=="alt"&&!loja){err.textContent="Completează loja.";el.querySelector("#gl").focus();return}
+    if(sc!=="alt"&&!orient){err.textContent="Completează orientul / țara.";el.querySelector("#go").focus();return}
+    if(sc==="alt"&&!note){err.textContent="Descrie pe scurt pentru ce ai nevoie de certificat.";el.querySelector("#gn").focus();return}
+    if(d&&d<min){err.textContent="Data vizitei trebuie să fie de azi înainte.";el.querySelector("#gd").focus();return}
+    btn.disabled=true;btn.textContent="Se trimite…";
+    try{
+      const r=await S.api.gsRequest({scop:sc,loja,orient,date:d,note});
+      S.data.gsRequests=r.gsRequests||[];close();
+      if(S.tab==="me"){const v=$("#view");if(v)vMe(v)}
+    }catch(e){btn.disabled=false;btn.textContent="Trimite solicitarea";err.textContent=e.detail||(e.status===401?"Sesiunea a expirat. Reîncarcă pagina.":"Nu s-a putut trimite. Verifică conexiunea și încearcă din nou.")}
+  };
 }
 
 function vLib(v){
@@ -2264,7 +2352,7 @@ async function vPushAdmin(host,role){
 }
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.24-40";
+const APP_VERSION="2026.10.25-41";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
