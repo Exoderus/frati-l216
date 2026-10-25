@@ -2284,7 +2284,7 @@ async function vPushAdmin(host,role){
   const draft=S.pushDraft||"";
   host.innerHTML=`<section class="card">
       <div class="label">Anunț urgent</div>
-      <p class="small muted" style="margin:6px 0 12px">Ajunge ca notificare pe telefoanele fraților, chiar cu aplicația închisă. Pentru o schimbare de oră, o ținută amânată sau o veste tristă. Restul rămâne pe WhatsApp.</p>
+      <p class="small muted" style="margin:6px 0 12px">Ajunge ca notificare pe telefoanele fraților, chiar cu aplicația închisă. Pentru o schimbare de oră, o ținută amânată sau o informare importantă. Restul rămâne pe WhatsApp.</p>
       ${mine!=="on"&&pushSupported()?`<div class="push-conf" style="margin:0 0 12px"><div class="small" style="margin-bottom:6px">Pe acest dispozitiv notificările nu sunt active, deci nu vei vedea nici testul.</div><button type="button" class="pbtn slim" id="push-self">Activează pe acest dispozitiv</button><div class="small" id="push-self-msg" style="margin-top:6px"></div></div>`:""}
       <textarea class="push-ta" id="push-text" maxlength="${PUSH.MAX}" placeholder="Ținuta de joi începe la 19:30, nu la 19:00.">${esc(draft)}</textarea>
       <div class="small muted" style="display:flex;justify-content:space-between;margin:4px 2px 10px"><span id="push-hint"></span><span id="push-count">0/${PUSH.MAX}</span></div>
