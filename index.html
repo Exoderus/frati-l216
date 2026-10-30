@@ -1680,7 +1680,7 @@ function vCalatorii(){
   const ors=new Set(V.map(x=>normRo(x.orient)).filter(Boolean));
   let h=intro+plansH+`<div class="sec-title">Călătorii efectuate</div><div class="pulse">
     <div class="card"><div class="label">Călătorii</div><div class="big">${V.length}</div><div class="small muted">vizite înregistrate</div></div>
-    <div class="card"><div class="label">Frați</div><div class="big">${done}<small> / ${n}</small></div><div class="small muted">cu vizita anului</div><div class="bar"><i style="width:${Math.round(done/n*100)}%"></i></div></div>
+    <div class="card"><div class="label">Frați</div><div class="big">${done}<small> / ${n}</small></div><div class="small muted">cu vizita făcută</div><div class="bar"><i style="width:${Math.round(done/n*100)}%"></i></div></div>
     <div class="card"><div class="label">Orienturi</div><div class="big">${ors.size}</div><div class="small muted">vizitate</div></div>
   </div>`;
   const me=M.me&&M.me.key;
@@ -2355,7 +2355,7 @@ async function vPushAdmin(host,role){
 }
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.29-42";
+const APP_VERSION="2026.10.31-1";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
