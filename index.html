@@ -451,10 +451,219 @@ button.navbtn{cursor:pointer;font-family:inherit}
 .flist{margin-top:12px;display:flex;flex-direction:column;gap:4px;font-size:14px}
 .frow{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:6px}
 .frow span:last-child{text-align:right;overflow-wrap:anywhere}
+/* ============ TEME DE SEZON · Halloween „Templul uitat” ============ */
+:root[data-tema="halloween"]{--hw:url(tema/halloween/)}
+:root[data-tema="halloween"]:not([data-theme="dark"]){--bg:#d6c8a8;--surface:#ece1c6;--line:#c4b38c;--muted:#5c5240;--fg:#1d1a14}
+@media (prefers-color-scheme: dark){:root[data-tema="halloween"]:not([data-theme="light"]){--bg:#08090e;--surface:#10131b;--line:#232633;--muted:#8d8a80;--fg:#e4dccb}}
+:root[data-tema="halloween"][data-theme="dark"]{--bg:#08090e;--surface:#10131b;--line:#232633;--muted:#8d8a80;--fg:#e4dccb}
+/* pergament pătat */
+:root[data-tema="halloween"] body{background:url(tema/halloween/pete.webp) 0 0/600px,var(--bg)}
+/* praf depus: strat gros pe muchia de sus, granule și scame pe toată suprafața */
+:root[data-tema="halloween"] .card{position:relative;background-image:url(tema/halloween/praf-muchie.webp),url(tema/halloween/praf.webp);
+  background-repeat:repeat-x,repeat;background-size:520px 26px,300px;background-position:0 0,0 0}
+:root[data-tema="halloween"] .tabs{background-image:url(tema/halloween/praf-muchie.webp),url(tema/halloween/praf.webp);background-repeat:repeat-x,repeat;background-size:520px 22px,300px}
+:root[data-tema="halloween"] .band{position:relative;overflow:hidden;background-image:url(tema/halloween/praf.webp);background-size:300px}
+:root[data-tema="halloween"] .lucr-action-btn{background-image:url(tema/halloween/praf-muchie.webp),url(tema/halloween/praf.webp);background-repeat:repeat-x,repeat;background-size:400px 20px,240px;filter:saturate(.65) brightness(.9)}
+/* pânze: banda (ambele colțuri), cardul ținutei, cardul Lojii */
+:root[data-tema="halloween"] .band .wrap{position:relative;z-index:1}
+:root[data-tema="halloween"] .band::before{content:"";position:absolute;right:0;top:0;width:330px;height:330px;pointer-events:none;
+  background:url(tema/halloween/panza-1.webp) 0 0/contain no-repeat;transform:scaleX(-1);opacity:.9}
+:root[data-tema="halloween"] .band::after{content:"";position:absolute;left:0;top:0;width:130px;height:130px;pointer-events:none;
+  background:url(tema/halloween/panza-3.webp) 0 0/contain no-repeat;opacity:.55}
+:root[data-tema="halloween"] .next::after{right:0;top:0;width:300px;height:300px;border:none;border-radius:0;
+  background:url(tema/halloween/panza-2.webp) 0 0/contain no-repeat;transform:scaleX(-1);opacity:.85;pointer-events:none}
+:root[data-tema="halloween"] .next>*{position:relative;z-index:1}
+:root[data-tema="halloween"] .lucr::after{content:"";position:absolute;left:0;top:0;width:240px;height:240px;pointer-events:none;border-radius:14px 0 0 0;
+  background:url(tema/halloween/panza-3.webp) 0 0/contain no-repeat;opacity:.8}
+:root[data-tema="halloween"]:not([data-theme="dark"]) .lucr::after{filter:brightness(.55) sepia(.4);opacity:.7}
+@media (prefers-color-scheme: dark){:root[data-tema="halloween"]:not([data-theme="light"]) .lucr::after{filter:none;opacity:.6}}
+:root[data-tema="halloween"] .lucr>*{position:relative;z-index:1}
+/* piatra: aceeași, acoperită de praf */
+:root[data-tema="halloween"] .stone .si img{filter:sepia(.45) saturate(.55) brightness(1.02) contrast(.9)}
+/* lumina lumânării: întuneric departe de flacără, căldură aproape de ea (poziția vine din JS) */
+#hw-umbra,#hw-cald{position:fixed;inset:0;pointer-events:none;z-index:21}
+#hw-umbra{mix-blend-mode:multiply;background:radial-gradient(circle var(--lr,620px) at var(--lx,80%) var(--ly,18%),rgb(255 255 255 / 0) 0,rgb(255 255 255 / 0) 12%,var(--umbra-m) 55%,var(--umbra-f) 100%)}
+#hw-cald{mix-blend-mode:soft-light;background:radial-gradient(circle calc(var(--lr,620px)*.62) at var(--lx,80%) var(--ly,18%),rgb(255 160 60 / var(--li,.8)) 0,rgb(255 140 40 / calc(var(--li,.8)*.45)) 35%,transparent 100%)}
+:root[data-tema="halloween"]{--umbra-m:rgb(190 160 120);--umbra-f:rgb(105 78 48)}
+@media (prefers-color-scheme: dark){:root[data-tema="halloween"]:not([data-theme="light"]){--umbra-m:rgb(200 188 172);--umbra-f:rgb(128 118 106)}}
+:root[data-tema="halloween"][data-theme="dark"]{--umbra-m:rgb(200 188 172);--umbra-f:rgb(128 118 106)}
+#hw-flacara{position:fixed;inset:0;pointer-events:none;z-index:22}
+#hw-sunet{position:fixed;left:0;top:0;z-index:23;width:44px;height:84px;border:0;padding:0;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent;border-radius:22px}
+#hw-sunet:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#hw-tip{position:fixed;left:0;top:0;z-index:23;pointer-events:none;font:500 12px var(--f-body);color:#f3e6c8;background:rgb(20 14 6 / .72);border:1px solid rgb(214 178 94 / .45);
+  padding:5px 10px;border-radius:999px;white-space:nowrap;transition:opacity .8s}
+#hw-tip.off{opacity:0}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 
 <div id="app"></div>
+<script>
+/* ============ TEME DE SEZON ============ */
+(function(){
+  const q=new URLSearchParams(location.search).get("tema");
+  const d=new Date(),m=d.getMonth()+1,z=d.getDate();
+  let tema=(m===10&&z>=29)||(m===11&&z===1)?"halloween":"";
+  if(q==="nu")tema="";else if(q)tema=q;
+  if(!tema)return;
+  document.documentElement.dataset.tema=tema;
+  if(tema==="halloween")halloween();
+
+  /* Ambianța „Templul uitat”: totul sintetizat, fără fișiere audio.
+     Vânt prin crăpăturile zidului, liniștea grea a sălii, ceara care trosnește,
+     picături într-o încăpere de piatră, o grindă care scârțâie și, rar, trei lovituri de maleț în depărtare. */
+  function hwAmbianta(ctx,out){
+    const R=Math.random,sr=ctx.sampleRate;
+    // zgomot alb, buclă de 4 s
+    const nb=ctx.createBuffer(2,sr*4,sr);for(let c=0;c<2;c++){const d=nb.getChannelData(c);for(let i=0;i<d.length;i++)d[i]=R()*2-1}
+    const noise=()=>{const s=ctx.createBufferSource();s.buffer=nb;s.loop=true;s.loopStart=R()*3;s.start(0,R()*3);return s};
+    // reverberație de sală de piatră: 4 s, coadă care se întunecă
+    const ir=ctx.createBuffer(2,sr*4,sr);
+    for(let c=0;c<2;c++){const d=ir.getChannelData(c);let lp=0;for(let i=0;i<d.length;i++){const t=i/sr;lp+=(R()*2-1-lp)*Math.max(.04,.9*Math.exp(-t*1.2));d[i]=lp*Math.exp(-t*1.55)*(t<.012?t/.012:1)}}
+    const rev=ctx.createConvolver();rev.buffer=ir;const wet=ctx.createGain();wet.gain.value=.9;rev.connect(wet).connect(out);
+    const send=(node,dry,w)=>{const g=ctx.createGain();g.gain.value=dry;node.connect(g).connect(out);const s=ctx.createGain();s.gain.value=w;node.connect(s).connect(rev)};
+    // 1) liniștea sălii: un vuiet foarte jos
+    {const n=noise(),f=ctx.createBiquadFilter();f.type="lowpass";f.frequency.value=140;const g=ctx.createGain();g.gain.value=.18;n.connect(f).connect(g);send(g,1,.2)}
+    // 2) vânt: două straturi care urcă și coboară încet
+    const wind=[0,1].map(i=>{const n=noise(),f=ctx.createBiquadFilter();f.type="bandpass";f.Q.value=7+i*4;f.frequency.value=380+i*260;
+      const g=ctx.createGain();g.gain.value=0;n.connect(f).connect(g);const p=ctx.createStereoPanner();p.pan.value=i?.5:-.4;g.connect(p);send(p,.8,.5);return{f,g,base:380+i*300}});
+    function plan(t0,dur){
+      const end=t0+dur;
+      // vântul: puncte noi la fiecare 2–6 s
+      wind.forEach((w,i)=>{for(let t=t0;t<end;t+=2+R()*4){const gust=R();w.f.frequency.setTargetAtTime(w.base*(.75+gust*.9),t,1.4);w.g.gain.setTargetAtTime((i?.05:.08)*(.2+gust*gust),t,1.8)}});
+      // ceara care trosnește: grupuri mici de pocnituri
+      for(let t=t0+R()*2;t<end;t+=.4+R()*2.6){const k=1+Math.floor(R()*3);for(let j=0;j<k;j++)crackle(t+j*(.02+R()*.08))}
+      // picături
+      for(let t=t0+1+R()*4;t<end;t+=4+R()*7)drip(t);
+      // grindă care scârțâie
+      for(let t=t0+6+R()*14;t<end;t+=22+R()*25)creak(t);
+      // trei lovituri de maleț, departe, rar
+      for(let t=t0+(plan.first?18:55)+R()*20;t<end;t+=80+R()*60){knocks(t)}
+      plan.first=false;
+    }
+    plan.first=true;
+    function crackle(t){const s=ctx.createBufferSource();s.buffer=nb;const f=ctx.createBiquadFilter();f.type="highpass";f.frequency.value=1800+R()*2500;
+      const g=ctx.createGain();const a=.05+R()*.12;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(a,t+.001);g.gain.exponentialRampToValueAtTime(.0005,t+.006+R()*.02);
+      const p=ctx.createStereoPanner();p.pan.value=.35+R()*.15;s.connect(f).connect(g).connect(p);send(p,1,.06);s.start(t,R()*3,.05)}
+    function drip(t){const o=ctx.createOscillator();o.type="sine";const f0=1100+R()*900;o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f0*.42,t+.07);
+      const g=ctx.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.09+R()*.05,t+.003);g.gain.exponentialRampToValueAtTime(.0005,t+.13);
+      const p=ctx.createStereoPanner();p.pan.value=R()*1.6-.8;o.connect(g).connect(p);send(p,.25,1);o.start(t);o.stop(t+.2)}
+    function creak(t){const d=1.1+R()*1.4,o=ctx.createOscillator();o.type="sawtooth";
+      const c=new Float32Array(32);let v=70+R()*30;for(let i=0;i<32;i++){v+=(R()-.45)*14;v=Math.max(55,Math.min(170,v));c[i]=v}o.frequency.setValueCurveAtTime(c,t,d);
+      const am=ctx.createOscillator();am.type="square";am.frequency.value=18+R()*20;const amg=ctx.createGain();amg.gain.value=.5;
+      const f=ctx.createBiquadFilter();f.type="bandpass";f.frequency.value=700+R()*500;f.Q.value=4;
+      const g=ctx.createGain();g.gain.value=0;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.05,t+.25);g.gain.setValueAtTime(.05,t+d-.35);g.gain.linearRampToValueAtTime(0,t+d);
+      const vca=ctx.createGain();vca.gain.value=.5;am.connect(amg).connect(vca.gain);
+      const p=ctx.createStereoPanner();p.pan.value=R()*1.4-.7;o.connect(f).connect(vca).connect(g).connect(p);send(p,.35,.9);o.start(t);am.start(t);o.stop(t+d+.05);am.stop(t+d+.05)}
+    function knocks(t){const gap=.85+R()*.1;for(let k=0;k<3;k++){const tk=t+k*gap;
+      const o=ctx.createOscillator();o.type="sine";o.frequency.setValueAtTime(130,tk);o.frequency.exponentialRampToValueAtTime(70,tk+.12);
+      const g=ctx.createGain();g.gain.setValueAtTime(0,tk);g.gain.linearRampToValueAtTime(.32,tk+.002);g.gain.exponentialRampToValueAtTime(.0005,tk+.22);
+      const s=ctx.createBufferSource();s.buffer=nb;const f=ctx.createBiquadFilter();f.type="lowpass";f.frequency.value=650;
+      const sg=ctx.createGain();sg.gain.setValueAtTime(0,tk);sg.gain.linearRampToValueAtTime(.35,tk+.001);sg.gain.exponentialRampToValueAtTime(.0005,tk+.05);
+      const p=ctx.createStereoPanner();p.pan.value=-.25;o.connect(g).connect(p);s.connect(f).connect(sg).connect(p);send(p,.12,1.1);
+      o.start(tk);o.stop(tk+.3);s.start(tk,R()*3,.08)}}
+    return {plan};
+  }
+
+  function halloween(){
+    let rm=false;try{rm=matchMedia("(prefers-reduced-motion: reduce)").matches}catch(_){}
+    const root=document.documentElement;
+    const umbra=document.createElement("div");umbra.id="hw-umbra";
+    const cald=document.createElement("div");cald.id="hw-cald";
+    const c=document.createElement("canvas");c.id="hw-flacara";
+    [umbra,cald,c].forEach(e=>e.setAttribute("aria-hidden","true"));
+    // atingerea lumânării pornește sau oprește ambianța; nu sună niciodată singur
+    const btn=document.createElement("button");btn.id="hw-sunet";btn.type="button";btn.setAttribute("aria-pressed","false");btn.setAttribute("aria-label","Ambianța templului");
+    const tip=document.createElement("div");tip.id="hw-tip";tip.textContent="Atinge lumânarea";
+    let ac=null,master=null,amb=null,tNext=0,timer=null,on=false;
+    function sunetOn(){
+      if(!ac){const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;ac=new AC();
+        master=ac.createGain();master.gain.value=0;const comp=ac.createDynamicsCompressor();comp.threshold.value=-12;comp.ratio.value=4;
+        master.connect(comp).connect(ac.destination);amb=hwAmbianta(ac,master);tNext=ac.currentTime}
+      ac.resume();on=true;btn.setAttribute("aria-pressed","true");
+      master.gain.cancelScheduledValues(ac.currentTime);master.gain.setTargetAtTime(3.6,ac.currentTime,1.2);
+      const fill=()=>{if(tNext<ac.currentTime+30){const t=Math.max(tNext,ac.currentTime+.1);amb.plan(t,30);tNext=t+30}};fill();timer=setInterval(fill,10000);
+      try{localStorage.setItem("l216.hw.tip","1")}catch(_){}tip.hidden=true;
+    }
+    function sunetOff(){if(!ac)return;on=false;btn.setAttribute("aria-pressed","false");clearInterval(timer);
+      master.gain.cancelScheduledValues(ac.currentTime);master.gain.setTargetAtTime(0,ac.currentTime,.35);setTimeout(()=>{if(!on)ac.suspend()},1500)}
+    btn.onclick=()=>on?sunetOff():sunetOn();
+    document.addEventListener("visibilitychange",()=>{if(!ac||!on)return;document.hidden?ac.suspend():ac.resume()});
+    try{if(localStorage.getItem("l216.hw.tip"))tip.hidden=true}catch(_){}
+    if(!tip.hidden)setTimeout(()=>{tip.classList.add("off")},9000);
+    const x=c.getContext("2d");let W=0,H=0,dpr=1;
+    const size=()=>{dpr=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;c.style.width=W+"px";c.style.height=H+"px"};
+    // praf în aer: multe particule fine + câteva mari, neclare, aproape de ochi
+    const P=Array.from({length:110},(_,i)=>{const big=i<10;return{x:Math.random(),y:Math.random(),r:big?3+Math.random()*5:.4+Math.random()**2*2,big,
+      vx:(Math.random()-.5)*.01,vy:(Math.random()-.6)*.012,ph:Math.random()*6.28,sp:.3+Math.random()*.9}});
+    // poziția lumânării: pe muchia de sus a cardului ținutei, altfel în colțul benzii
+    function anchor(){
+      const n=document.querySelector(".next");if(n){const r=n.getBoundingClientRect();if(r.bottom>0)return{x:r.right-62,y:r.top+1}}
+      const b=document.querySelector(".band");if(b){const r=b.getBoundingClientRect();return{x:r.right-48,y:r.bottom-4}}
+      return{x:W-50,y:120};
+    }
+    const noise=t=>Math.sin(t*1.7)*.5+Math.sin(t*3.1+1.3)*.3+Math.sin(t*7.3+.4)*.15+Math.sin(t*13.7)*.05;
+    function candle(a,t,fl){
+      const cw=16,ch=40,bx=a.x-cw/2,by=a.y-ch;
+      // corpul: ceară veche, îngălbenită, cu scurgeri
+      let g=x.createLinearGradient(bx,0,bx+cw,0);
+      g.addColorStop(0,"#8a7a5c");g.addColorStop(.35,"#efe0b8");g.addColorStop(.6,"#d9c79a");g.addColorStop(1,"#5e513b");
+      x.fillStyle=g;x.beginPath();x.moveTo(bx,a.y);x.lineTo(bx,by+3);x.quadraticCurveTo(a.x,by-1,bx+cw,by+3);x.lineTo(bx+cw,a.y);x.closePath();x.fill();
+      // scurgeri de ceară
+      x.fillStyle="rgba(240,226,190,.95)";
+      [[.15,14],[.55,22],[.85,9]].forEach(([u,l])=>{const dx=bx+cw*u;x.beginPath();x.moveTo(dx-2.5,by+3);x.lineTo(dx-2,by+3+l);x.arc(dx,by+3+l,2.2,Math.PI,0,true);x.lineTo(dx+2.5,by+3);x.fill()});
+      // baltă de ceară la bază
+      x.fillStyle="rgba(214,198,158,.9)";x.beginPath();x.ellipse(a.x+2,a.y-1,cw*.95,3,0,0,6.283);x.fill();
+      // fitil
+      x.strokeStyle="#1a120a";x.lineWidth=1.4;x.beginPath();x.moveTo(a.x,by+1);x.lineTo(a.x+fl.lean*.3,by-5);x.stroke();
+      // flacăra
+      const fx=a.x+fl.lean,fy=by-5,fh=20*fl.h,fw=5.2;
+      x.save();x.globalCompositeOperation="lighter";
+      let h=x.createRadialGradient(fx,fy-fh*.35,0,fx,fy-fh*.35,70*fl.h);
+      h.addColorStop(0,"rgba(255,190,90,.55)");h.addColorStop(.3,"rgba(255,140,40,.18)");h.addColorStop(1,"rgba(255,120,30,0)");
+      x.fillStyle=h;x.fillRect(fx-80,fy-100,160,160);
+      x.restore();
+      const flame=(sc,col)=>{x.beginPath();x.moveTo(fx,fy+2);x.bezierCurveTo(fx-fw*sc,fy-fh*.25*sc,fx-fw*.5*sc+fl.lean*.4,fy-fh*.7*sc,fx+fl.lean,fy-fh*sc);
+        x.bezierCurveTo(fx+fw*.5*sc+fl.lean*.4,fy-fh*.7*sc,fx+fw*sc,fy-fh*.25*sc,fx,fy+2);x.fillStyle=col;x.fill()};
+      let og=x.createLinearGradient(0,fy,0,fy-fh);og.addColorStop(0,"rgba(255,120,30,.85)");og.addColorStop(.5,"rgba(255,170,60,.9)");og.addColorStop(1,"rgba(255,200,120,.2)");
+      flame(1,og);
+      let ig=x.createLinearGradient(0,fy,0,fy-fh*.7);ig.addColorStop(0,"rgba(120,150,255,.7)");ig.addColorStop(.25,"rgba(255,245,215,1)");ig.addColorStop(1,"rgba(255,235,180,.6)");
+      flame(.62,ig);
+    }
+    let last=0,t0=performance.now();
+    function frame(now){
+      if(!rm)requestAnimationFrame(frame);
+      if(document.hidden)return;
+      if(!rm&&now-last<30)return;
+      const t=(now-t0)/1000,dt=Math.min(.1,(now-last)/1000||0);last=now;
+      const a=anchor();
+      const fl=rm?{h:1,lean:0,i:.85}:{h:1+noise(t*2.2)*.12+(Math.random()-.5)*.04,lean:noise(t*1.3+5)*1.6,i:.78+noise(t*2.2)*.12};
+      // variabilele de lumină doar pe cele două straturi, nu pe toată pagina
+      const lr=Math.round(Math.max(W,H)*(.95+fl.h*.08))+"px";
+      for(const el of [umbra,cald]){const s=el.style;s.setProperty("--lx",Math.round(a.x)+"px");s.setProperty("--ly",Math.round(a.y-55)+"px");s.setProperty("--lr",lr);s.setProperty("--li",fl.i.toFixed(3))}
+      x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,W,H);
+      const lx=a.x,ly=a.y-55,R=Math.max(W,H)*.9;
+      for(const p of P){
+        if(!rm){p.ph+=dt*p.sp;p.x+=(p.vx+Math.sin(p.ph)*.008)*dt;p.y+=(p.vy+Math.cos(p.ph*.7)*.006)*dt;
+          if(p.y<-.03)p.y=1.03;if(p.y>1.03)p.y=-.03;if(p.x<-.03)p.x=1.03;if(p.x>1.03)p.x=-.03}
+        const px=p.x*W,py=p.y*H,dist=Math.hypot(px-lx,py-ly)/R;
+        const lit=Math.max(0,1-dist*1.4);
+        let al=(.03+lit*.8)*(.55+.45*Math.sin(p.ph*2.3))*fl.i;
+        if(p.big)al*=.22;
+        if(al<.01)continue;
+        if(p.big){const g=x.createRadialGradient(px,py,0,px,py,p.r);g.addColorStop(0,`rgba(255,215,160,${al})`);g.addColorStop(1,"rgba(255,215,160,0)");x.fillStyle=g;x.beginPath();x.arc(px,py,p.r,0,6.283);x.fill()}
+        else{x.beginPath();x.arc(px,py,p.r,0,6.283);x.fillStyle=`rgba(255,${Math.round(205+lit*35)},${Math.round(150+lit*50)},${al.toFixed(3)})`;x.fill()}
+      }
+      if(on)fl.h*=1.06;
+      candle(a,t,fl);
+      btn.style.transform=`translate(${a.x-22}px,${a.y-78}px)`;
+      if(!tip.hidden)tip.style.transform=`translate(calc(${a.x}px - 100%),${a.y-86}px)`;
+    }
+    const start=()=>{document.body.append(umbra,cald,c,btn,tip);size();addEventListener("resize",size);requestAnimationFrame(frame);
+      if(rm){addEventListener("scroll",()=>requestAnimationFrame(frame),{passive:true});setInterval(()=>frame(performance.now()),1000)}};
+    if(document.body)start();else addEventListener("DOMContentLoaded",start);
+  }
+})();
+</script>
 
 <script src="vendor/qrcode.min.js"></script>
 <script>
@@ -2355,7 +2564,7 @@ async function vPushAdmin(host,role){
 }
 
 /* ============ ACTUALIZĂRI AUTOMATE ============ */
-const APP_VERSION="2026.10.31-1";
+const APP_VERSION="2026.10.31-2";
 async function checkVersion(){
   if(S.api&&S.api.mode!=="google")return;
   try{
